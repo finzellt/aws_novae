@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Nova Ingest - resolve_simbad_metadata Lambda (image-based) with sensible defaults.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: nova-ingest
+  LogLevel:
+    Type: String
+    Default: INFO
+  SimbadTimeoutSec:
+    Type: Number
+    Default: "15"
+
+Globals:
+  Function:
+    Timeout: 30               # network call + light parsing
+    MemorySize: 512
+    Tracing: Active
+    Architectures:
+      - x86_64               # use x86_64 for widest wheel support
+    Environment:
+      Variables:
+        LOG_LEVEL: !Ref LogLevel
+        SIMBAD_TIMEOUT_SEC: !Ref SimbadTimeoutSec
+
+Resources:
+  ResolveSimbadMetadataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${ProjectName}-resolve-simbad-metadata
+      CodeUri: !Sub ${ProjectName}-resolve-simbad-metadata/
+      PackageType: Image
+      Description: Query SIMBAD for coords/object types/aliases for a candidate nova.
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      # No events here; typically invoked by Step Functions or `sam local invoke`
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: src/resolve_simbad_metadata
+      DockerTag: v1
+
+  ResolveSimbadLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${ResolveSimbadMetadataFunction}
+      RetentionInDays: 30
+
+Outputs:
+  ResolveSimbadMetadataArn:
+    Description: Lambda ARN
+    Value: !GetAtt ResolveSimbadMetadataFunction.Arn
+  ResolveSimbadImageUri:
+    Description: ECR image URI used by the Lambda
+    Value: !GetAtt ResolveSimbadMetadataFunction.ImageUri

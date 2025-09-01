@@ -1,0 +1,26 @@
+{
+  "resource": "/hello",
+  "path": "/hello",
+  "httpMethod": "GET",
+  "headers": {
+    "Accept": "application/json",
+    "Host": "abc123.execute-api.us-east-1.amazonaws.com",
+    "User-Agent": "curl/7.64.1"
+  },
+  "queryStringParameters": null,
+  "multiValueQueryStringParameters": null,
+  "pathParameters": null,
+  "stageVariables": null,
+  "requestContext": {
+    "resourcePath": "/hello",
+    "httpMethod": "GET",
+    "path": "/prod/hello",
+    "stage": "prod",
+    "identity": {
+      "sourceIp": "123.45.67.89",
+      "userAgent": "curl/7.64.1"
+    }
+  },
+  "body": null,
+  "isBase64Encoded": false
+}

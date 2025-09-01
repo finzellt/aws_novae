@@ -1,0 +1,10 @@
+#FILENAME,WAVELENGTH COL NUM,FLUX COL NUM,FLUX ERR COL NUM,FLUX UNITS,DATE,OBSERVER,TELESCOPE,INSTRUMENT,DISPERSION,WAVELENGTH RANGE 1,WAVELENGTH RANGE 2
+V351PUPE_Williams_Optical_Spectra.csv,0,1,NA,ergs/cm^2/sec,2.44875e+06,Williams,CTIO 1 m,2D-Frutti,3.570771,3259.67500,7491.03864
+V351PUPI_Williams_Optical_Spectra.csv,0,1,NA,ergs/cm^2/sec,2.4491e+06,Williams,CTIO 1 m,2D-Frutti,3.560357,3222.00000,10463.76614
+V351PUPA_Williams_Optical_Spectra.csv,0,1,NA,ergs/cm^2/sec,2.44863e+06,Williams,CTIO 1 m,2D-Frutti,3.519954,3332.00000,10378.94791
+V351PUPH_Williams_Optical_Spectra.csv,0,1,NA,ergs/cm^2/sec,2.44907e+06,Williams,CTIO 1 m,2D-Frutti,8.288691,2959.88500,7692.72756
+V351PUPF_Williams_Optical_Spectra.csv,0,1,NA,ergs/cm^2/sec,2.44895e+06,Williams,CTIO 1 m,2D-Frutti,7.87690687179569,6168.69629,10666.41011
+V351PUPC_Williams_Optical_Spectra.csv,0,1,NA,ergs/cm^2/sec,2.44866e+06,Williams,CTIO 1 m,2D-Frutti,3.567461,3316.00000,9598.29882
+V351PUPG_Williams_Optical_Spectra.csv,0,1,NA,ergs/cm^2/sec,2.44899e+06,Williams,CTIO 1 m,2D-Frutti,7.851578,3260.00000,10483.45176
+V351PUPD_Williams_Optical_Spectra.csv,0,1,NA,ergs/cm^2/sec,2.44869e+06,Williams,CTIO 1 m,2D-Frutti,8.283712,3000.00000,7729.99955
+V351PUPB_Williams_Optical_Spectra.csv,0,1,NA,ergs/cm^2/sec,2.44865e+06,Williams,CTIO 1 m,2D-Frutti,8.281056,3220.00000,10590.13984
