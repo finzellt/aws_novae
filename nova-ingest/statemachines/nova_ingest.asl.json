@@ -1,12 +1,13 @@
 {
-  "Comment": "Local nova ingest",
+  "Comment": "Nova ingest: resolver -> validate -> determine host galaxy",
   "StartAt": "ResolveSimbad",
   "States": {
     "ResolveSimbad": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": { "FunctionName": "ResolveSimbadMetadataFunction", "Payload.$": "$" },
+      "Parameters": { "FunctionName": "${ResolveSimbadArn}", "Payload.$": "$" },
       "ResultPath": "$.resolver",
+      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "BackoffRate": 2.0, "MaxAttempts": 3 }],
       "Next": "CheckFound"
     },
     "CheckFound": {
@@ -19,18 +20,20 @@
     "Validate": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": { "FunctionName": "ValidateNovaAndCoordsFunction", "Payload.$": "$.resolver.Payload" },
+      "Parameters": { "FunctionName": "${ValidateArn}", "Payload.$": "$.resolver.Payload" },
       "OutputPath": "$.Payload",
-      "Next": "DetermineHostGalaxy"
+      "Next": "QueryADSBibcodes"
     },
-    "DetermineHostGalaxy": {
+    "QueryADSBibcodes": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": { "FunctionName": "DetermineHostGalaxyFunction", "Payload.$": "$" },
+      "Parameters": {
+        "FunctionName": "${QueryAdsArn}",
+        "Payload.$": "$"
+      },
       "OutputPath": "$.Payload",
       "End": true
     },
     "DoneNoop": { "Type": "Succeed" }
   }
 }
-

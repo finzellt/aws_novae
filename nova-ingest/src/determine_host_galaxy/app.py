@@ -30,8 +30,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 # import boto3
 import os, boto3
-_s3 = boto3.client("s3", endpoint_url=os.getenv("S3_ENDPOINT_URL"))  # None in AWS, LocalStack URL locally
-
+# _s3 = boto3.client("s3", endpoint_url=os.getenv("S3_ENDPOINT_URL"))  # None in AWS, LocalStack URL locally
+_endpoint = os.getenv("S3_ENDPOINT_URL")
+_s3 = boto3.client("s3", **({"endpoint_url": _endpoint} if _endpoint else {}))
 
 # --- Make astropy safe on Lambda (/tmp only) BEFORE import ---
 def _bootstrap_astropy(base="/tmp"):
@@ -105,9 +106,10 @@ def _load_galaxies() -> List[Tuple[str, float, float]]:
     return rows
 
 
+# def _normalize(s: str) -> str:
+#     return " ".join((s or "").lower().split())
 def _normalize(s: str) -> str:
-    return " ".join((s or "").lower().split())
-
+    return "".join((s or "").lower().split())
 
 def _aliases_as_text(event: Dict[str, Any]) -> str:
     parts: List[str] = []
@@ -115,7 +117,7 @@ def _aliases_as_text(event: Dict[str, Any]) -> str:
         v = event.get(k)
         if isinstance(v, str):
             parts.append(v)
-    aliases = event.get("aliases") or []
+    aliases = event["aliases"] or []
     if isinstance(aliases, list):
         parts.extend([a for a in aliases if isinstance(a, str)])
     return " | ".join(parts)

@@ -6,5 +6,5 @@ resolve_s3 = true
 s3_prefix = "nova-ingest-dev"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "ProjectName=\"nova-ingest\" LogLevel=\"INFO\" SimbadTimeoutSec=\"15\""
-image_repositories = ["ResolveSimbadMetadataFunction=433980486697.dkr.ecr.us-east-1.amazonaws.com/novaingestdev00d111d1/resolvesimbadmetadatafunctionf0002dd4repo", "ValidateNovaAndCoordsFunction=433980486697.dkr.ecr.us-east-1.amazonaws.com/novaingestdev00d111d1/validatenovaandcoordsfunction060e56d2repo"]
+parameter_overrides = "ProjectName=\"nova-ingest\" LogLevel=\"INFO\" SimbadTimeoutSec=\"15\" GalaxyListUri=\"s3://nova-data-bucket-finzell/reference/nearby_galaxies.csv\" GalaxyBucketName=\"nova-data-bucket-finzell\" S3EndpointUrl=\"\" ADSSecretName=\"ADSQueryToken\""
+image_repositories = ["ResolveSimbadMetadataFunction=433980486697.dkr.ecr.us-east-1.amazonaws.com/novaingestdev00d111d1/resolvesimbadmetadatafunctionf0002dd4repo", "ValidateNovaAndCoordsFunction=433980486697.dkr.ecr.us-east-1.amazonaws.com/novaingestdev00d111d1/validatenovaandcoordsfunction060e56d2repo", "DetermineHostGalaxyFunction=433980486697.dkr.ecr.us-east-1.amazonaws.com/novaingestdev00d111d1/determinehostgalaxyfunctiona5d1f94brepo", "QueryADSBibcodesFunction=433980486697.dkr.ecr.us-east-1.amazonaws.com/novaingestdev00d111d1/queryadsbibcodesfunction3c88b1a8repo"]
