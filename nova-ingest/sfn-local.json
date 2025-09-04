@@ -1,0 +1,33 @@
+{
+  "Comment": "Local nova ingest",
+  "StartAt": "ResolveSimbad",
+  "States": {
+    "ResolveSimbad": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-1:123456789012:function:ResolveSimbadMetadataFunction",
+        "Payload.$": "$"
+      },
+      "ResultPath": "$.resolver",
+      "Next": "CheckFound"
+    },
+    "CheckFound": {
+      "Type": "Choice",
+      "Choices": [
+        { "Variable": "$.resolver.Payload.status", "StringEquals": "NOT_FOUND", "Next": "DoneNoop" }
+      ],
+      "Default": "Validate"
+    },
+    "Validate": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "arn:aws:lambda:us-east-1:123456789012:function:ValidateNovaAndCoordsFunction",
+        "Payload.$": "$.resolver.Payload"
+      },
+      "End": true
+    },
+    "DoneNoop": { "Type": "Succeed" }
+  }
+}

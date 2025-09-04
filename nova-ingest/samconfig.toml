@@ -1,0 +1,10 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "nova-ingest-dev"
+resolve_s3 = true
+s3_prefix = "nova-ingest-dev"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "ProjectName=\"nova-ingest\" LogLevel=\"INFO\" SimbadTimeoutSec=\"15\""
+image_repositories = ["ResolveSimbadMetadataFunction=433980486697.dkr.ecr.us-east-1.amazonaws.com/novaingestdev00d111d1/resolvesimbadmetadatafunctionf0002dd4repo", "ValidateNovaAndCoordsFunction=433980486697.dkr.ecr.us-east-1.amazonaws.com/novaingestdev00d111d1/validatenovaandcoordsfunction060e56d2repo"]

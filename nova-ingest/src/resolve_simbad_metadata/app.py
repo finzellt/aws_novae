@@ -16,8 +16,35 @@ Lambda: resolve_simbad_metadata
 - Output if not found: {"status": "NOT_FOUND", "candidate_name": "..."}
 Raise exceptions for transient/system errors so Step Functions can retry.
 """
-
 from __future__ import annotations
+
+import os, pathlib
+
+def _bootstrap_astropy(base="/tmp"):
+    os.environ.setdefault("ASTROPY_CONFIGDIR", f"{base}/astropy/config")
+    os.environ.setdefault("ASTROPY_CACHE_DIR", f"{base}/astropy/cache")
+    os.environ.setdefault("ASTROQUERY_CACHE_DIR", f"{base}/astroquery")
+    # belt & suspenders: some code uses XDG or HOME
+    os.environ.setdefault("XDG_CACHE_HOME", f"{base}/.cache")
+    os.environ.setdefault("HOME", base)
+
+    for p in (
+        os.environ["ASTROPY_CONFIGDIR"],
+        os.environ["ASTROPY_CACHE_DIR"],
+        os.environ["ASTROQUERY_CACHE_DIR"],
+        os.environ["XDG_CACHE_HOME"],
+    ):
+        pathlib.Path(p).mkdir(parents=True, exist_ok=True)
+
+_bootstrap_astropy()
+
+import sys
+print("ASTROPY_CONFIGDIR=", os.environ.get("ASTROPY_CONFIGDIR"))
+print("ASTROPY_CACHE_DIR=", os.environ.get("ASTROPY_CACHE_DIR"))
+print("ASTROQUERY_CACHE_DIR=", os.environ.get("ASTROQUERY_CACHE_DIR"))
+print("HOME=", os.environ.get("HOME"))
+print("sys.path=", sys.path[:3])
+
 
 import json
 import logging
@@ -25,8 +52,11 @@ import os
 import re
 from typing import Any, Dict, List, Optional
 
-import astropy
-import astroquery
+# import astropy
+# import astroquery
+# from common.astropy_bootstrap import setup_astropy_cache
+# setup_astropy_cache()
+
 from astroquery.simbad import Simbad
 from astropy.table import Table
 
@@ -35,8 +65,12 @@ logger.setLevel(logging.INFO)
 
 # Configure a dedicated Simbad client (instance-local fields)
 _simbad = Simbad()
+try:
+    _simbad.cache_location = os.environ["ASTROQUERY_CACHE_DIR"]
+except Exception:
+    pass
 # Degrees for easy downstream math
-_simbad.add_votable_fields("ra(d)", "dec(d)", "otype")
+_simbad.add_votable_fields("ra(d)", "dec(d)", "otypes")
 # Tweak row limit just in case; query_object returns a single best match.
 _simbad.ROW_LIMIT = 1
 
@@ -64,6 +98,24 @@ def _table_cell(row: Any, name: str) -> Optional[str]:
     return v if v and v.lower() != "nan" else None
 
 
+def _split_pipe_list(value: Optional[str]) -> List[str]:
+    """
+    SIMBAD packs certain VOTable fields (e.g., IDS, BIBCODELIST) as a single
+    pipe-delimited string. Split, strip, and deduplicate while preserving order.
+    """
+    if not value:
+        return []
+    parts = [p.strip() for p in value.split("|") if p.strip()]
+    # Deduplicate while preserving order
+    seen = set()
+    uniq = []
+    for p in parts:
+        if p not in seen:
+            seen.add(p)
+            uniq.append(p)
+    return uniq
+
+
 def resolve_simbad(candidate_name: str) -> Dict[str, Any]:
     """Core resolver logic (pure function; easy to unit test)."""
     name = (candidate_name or "").strip()
@@ -80,6 +132,8 @@ def resolve_simbad(candidate_name: str) -> Dict[str, Any]:
     row = tbl[0]
 
     main_id = _table_cell(row, "MAIN_ID") or name
+    if main_id.startswith("V* "):
+        main_id = main_id[3:]
     # logger.warning(f"SIMBAD row: {row}")
     # logger.warning(f"Atropy version: {astropy.__version__}")
     # logger.warning(f"Astroquery version: {astroquery.__version__}")
@@ -95,8 +149,8 @@ def resolve_simbad(candidate_name: str) -> Dict[str, Any]:
     except Exception as e:
         raise RuntimeError(f"Invalid RA/Dec values from SIMBAD: {ra_s}, {dec_s}") from e
 
-    otype = _table_cell(row, "OTYPE")
-    object_types: List[str] = [otype] if otype else []
+    otypes = _table_cell(row, "OTYPES")
+    object_types: List[str] = _split_pipe_list(otypes) if otypes else []
 
     # Get aliases (second call)
     ids_tbl: Optional[Table] = _simbad.query_objectids(name)

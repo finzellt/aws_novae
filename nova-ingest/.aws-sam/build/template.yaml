@@ -20,13 +20,20 @@ Globals:
     MemorySize: 512
     Tracing: Active
     Architectures:
-    - x86_64
+    - arm64
     Environment:
       Variables:
         LOG_LEVEL:
           Ref: LogLevel
         SIMBAD_TIMEOUT_SEC:
           Ref: SimbadTimeoutSec
+        ASTROPY_CONFIGDIR: /tmp/astropy/config
+        ASTROPY_CACHE_DIR: /tmp/astropy/cache
+        ASTROQUERY_CACHE_DIR: /tmp/astroquery
+        XDG_CACHE_HOME: /tmp/.cache
+        HOME: /tmp
+    EphemeralStorage:
+      Size: 1024
 Resources:
   ResolveSimbadMetadataFunction:
     Type: AWS::Serverless::Function
@@ -39,18 +46,115 @@ Resources:
       Description: Query SIMBAD for coords/object types/aliases for a candidate nova.
       Policies:
       - AWSLambdaBasicExecutionRole
-      ImageUri: resolvesimbadmetadatafunction:v1
+      ImageUri: resolvesimbadmetadatafunction:resolver
     Metadata:
-      DockerContext: /Users/tfinzell/Git/aws_novae/nova-ingest/src/resolve_simbad_metadata
-      DockerTag: v1
+      DockerBuildArgs:
+        HANDLER_PATH: src/resolve_simbad_metadata/app.py
+      DockerContext: /Users/tfinzell/Git/aws_novae/nova-ingest
+      DockerTag: resolver
       Dockerfile: Dockerfile
       SamResourceId: ResolveSimbadMetadataFunction
+  ValidateNovaAndCoordsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: nova-ingest-validate-nova-and-coords
+      PackageType: Image
+      Description: Validate that the candidate is a nova and has valid coords.
+      Policies:
+      - AWSLambdaBasicExecutionRole
+      ImageUri: validatenovaandcoordsfunction:validator
+    Metadata:
+      DockerBuildArgs:
+        HANDLER_PATH: src/validate_nova_and_coords/app.py
+      DockerContext: /Users/tfinzell/Git/aws_novae/nova-ingest
+      DockerTag: validator
+      Dockerfile: Dockerfile
+      SamResourceId: ValidateNovaAndCoordsFunction
   ResolveSimbadLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName:
         Fn::Sub: /aws/lambda/${ResolveSimbadMetadataFunction}
       RetentionInDays: 30
+  NovaIngestStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: nova-ingest-pipeline
+      Tracing:
+        Enabled: true
+      Logging:
+        Destinations:
+        - CloudWatchLogsLogGroup:
+            LogGroupArn:
+              Fn::GetAtt:
+              - NovaIngestLogs
+              - Arn
+        IncludeExecutionData: true
+        Level: ALL
+      Policies:
+      - LambdaInvokePolicy:
+          FunctionName:
+            Ref: ResolveSimbadMetadataFunction
+      - LambdaInvokePolicy:
+          FunctionName:
+            Ref: ValidateNovaAndCoordsFunction
+      - Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogDelivery
+          - logs:GetLogDelivery
+          - logs:UpdateLogDelivery
+          - logs:DeleteLogDelivery
+          - logs:ListLogDeliveries
+          - logs:PutResourcePolicy
+          - logs:DescribeResourcePolicies
+          - logs:DescribeLogGroups
+          Resource: '*'
+      Definition:
+        Comment: Two-step nova ingest (resolver -> validator)
+        StartAt: ResolveSimbad
+        States:
+          ResolveSimbad:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName:
+                Fn::GetAtt:
+                - ResolveSimbadMetadataFunction
+                - Arn
+              Payload.$: $
+            Retry:
+            - ErrorEquals:
+              - States.ALL
+              IntervalSeconds: 2
+              BackoffRate: 2.0
+              MaxAttempts: 3
+            ResultPath: $.resolver
+            Next: CheckFound
+          CheckFound:
+            Type: Choice
+            Choices:
+            - Variable: $.resolver.Payload.status
+              StringEquals: NOT_FOUND
+              Next: DoneNoop
+            Default: Validate
+          Validate:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName:
+                Fn::GetAtt:
+                - ValidateNovaAndCoordsFunction
+                - Arn
+              Payload.$: $.resolver.Payload
+            End: true
+          DoneNoop:
+            Type: Succeed
+  NovaIngestLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/vendedlogs/states/nova-ingest-pipeline
+      RetentionInDays: 90
 Outputs:
   ResolveSimbadMetadataArn:
     Description: Lambda ARN
@@ -58,9 +162,3 @@ Outputs:
       Fn::GetAtt:
       - ResolveSimbadMetadataFunction
       - Arn
-  ResolveSimbadImageUri:
-    Description: ECR image URI used by the Lambda
-    Value:
-      Fn::GetAtt:
-      - ResolveSimbadMetadataFunction
-      - ImageUri

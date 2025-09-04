@@ -1,0 +1,36 @@
+s3://nova-catalog/
+  raw/                     # whatever you receive “as-is” (uploads, dumps)
+  staging/                 # per-candidate JSON before nightly publish
+    metadata/YYYY/MM/DD/<name_norm>.json
+    data/...
+  metadata/                # small authoritative catalog (≈500 rows) + indices
+    snapshots/metadata-YYYYMMDDTHHMMSSZ.parquet
+    snapshots/metadata-YYYYMMDDTHHMMSSZ.json
+    metadata-current.pointer                 # text: key of the latest snapshot
+    alias_index.json                         # alias -> nova_id (small)
+    hp_index.json                            # optional: HEALPix -> [nova_id]
+  data/                     # large data catalog (~10^6 rows), partitioned
+    constellation=<AAA>/nova_id=<ID>/year=<YYYY>/part-*.parquet
+  website/                  # static artifacts for the public site/API
+    api/index.json
+    api/nova/<nova_id>-<hash>.json
+    plots/<nova_id>-<hash>.png
+  reference/                # versioned reference lists used by Lambdas
+    galaxies/v2025-08/nearby_galaxies_lite.json
+    galaxies/v2025-08/nearby_galaxies_full.parquet
+    galaxies/current.pointer                  # text: v2025-08
+  harvest/                  # hand-off for future data harvester
+    manifests/<nova_id>.json
+    snapshots/
+      ads/<nova_id>.json
+      simbad/<nova_id>.json
+  stash/                    # unresolved names
+    unresolved-YYYYMMDD.csv
+  reports/                  # human-friendly reports from nightly publish
+    publish-YYYYMMDD.json
+    host-ties/...
+  state/                    # watermarks and run metadata
+    publish_watermark.json
+  ingest-markers/           # idempotency markers for per-candidate flow
+    <name_norm>.marker
+  logs/   
