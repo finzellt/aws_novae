@@ -144,6 +144,31 @@ Resources:
       DockerTag: ads-query
       DockerBuildArgs:
         HANDLER_PATH: src/query_ads_bibcodes/app.py   # for ads query
+    
+  StageWriteMetadataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: nova-ingest-stage-write-metadata
+      PackageType: Image
+      Timeout: 10
+      MemorySize: 512
+      Environment:
+        Variables:
+          STAGING_BUCKET: nova-data-bucket-finzell
+          STAGING_PREFIX: staging/metadata
+          WRITE_LATEST: "true"
+          S3_SSE: AES256
+          # For local only: S3_ENDPOINT_URL: http://host.docker.internal:4566
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3WritePolicy:
+            BucketName: nova-data-bucket-finzell
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: .
+      DockerTag: stage-write
+      DockerBuildArgs:
+        HANDLER_PATH: src/stage_write_metadata/app.py   # for staging write
 
   DetermineHostGalaxyLogGroup:
     Type: AWS::Logs::LogGroup
@@ -167,6 +192,7 @@ Resources:
         ValidateArn: !GetAtt ValidateNovaAndCoordsFunction.Arn
         DetermineHostArn: !GetAtt DetermineHostGalaxyFunction.Arn       # NEW
         QueryAdsArn: !GetAtt QueryADSBibcodesFunction.Arn
+        StageWriteArn: !GetAtt StageWriteMetadataFunction.Arn
       Tracing:
         Enabled: true
       Logging:
@@ -185,6 +211,8 @@ Resources:
             FunctionName: !Ref DetermineHostGalaxyFunction   # <-- add this
         - LambdaInvokePolicy:
             FunctionName: !Ref QueryADSBibcodesFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref StageWriteMetadataFunction
         - Statement:
           - Effect: Allow
             Action:

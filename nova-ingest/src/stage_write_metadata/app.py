@@ -68,10 +68,12 @@ def handler(event: Dict[str, Any], context) -> Dict[str, Any]:
     y, m, d = _ymd(ts)
     ts_compact = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
+    stage_written_at = _now_iso()
+
     # Assemble staged document (you can keep this as the whole event)
     doc = dict(event)
     doc.setdefault("metadata_version", "1")
-    doc.setdefault("stage_written_at", _now_iso())
+    doc.setdefault("stage_written_at", stage_written_at)
     doc.setdefault("name_norm", name_norm)
 
     # Immutable snapshot key + optional "latest" pointer
@@ -83,7 +85,10 @@ def handler(event: Dict[str, Any], context) -> Dict[str, Any]:
     if WRITE_LATEST:
         latest_res = _put_json(STAGING_BUCKET, latest_key, {"ref": snapshot_key, "updated_at": _now_iso()})
 
+    # return includes the timestamp too
     out = dict(event)
+    out.setdefault("name_norm", name_norm)
+    out.setdefault("stage_written_at", stage_written_at)  # <-- add this
     out["staging"] = {
         "bucket": STAGING_BUCKET,
         "snapshot_key": snapshot_key,

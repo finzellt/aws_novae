@@ -32,8 +32,15 @@
         "Payload.$": "$"
       },
       "OutputPath": "$.Payload",
-      "End": true
-    },
-    "DoneNoop": { "Type": "Succeed" }
-  }
+      "Next": "StageWriteMetadata"
+      },
+      "StageWriteMetadata": {
+        "Type": "Task",
+        "Resource": "arn:aws:states:::lambda:invoke",
+        "Parameters": { "FunctionName": "${StageWriteArn}", "Payload.$": "$" },
+        "OutputPath": "$.Payload",
+        "End": true
+      },
+"DoneNoop": { "Type": "Succeed" }
+}
 }
