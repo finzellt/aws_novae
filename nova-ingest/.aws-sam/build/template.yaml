@@ -126,6 +126,10 @@ Resources:
           ADS_API_URL: https://api.adsabs.harvard.edu/v1/search/query
           ADS_SECRET_NAME:
             Ref: ADSSecretName
+          ADS_RESOLVER_URL: https://api.adsabs.harvard.edu/v1/resolver
+          RESOLVER_MODE: smart
+          RESOLVER_TIMEOUT: '6'
+          RESOLVER_MAX_CALLS: '200'
       Policies:
       - AWSLambdaBasicExecutionRole
       - Statement:
@@ -153,12 +157,21 @@ Resources:
         Variables:
           STAGING_BUCKET: nova-data-bucket-finzell
           STAGING_PREFIX: staging/metadata
+          ADS_STAGING_PREFIX: staging/ads
           WRITE_LATEST: 'true'
+          DROP_ADS_FROM_PAYLOAD: 'true'
+          ADS_SECRET_NAME: ADSQueryToken
           S3_SSE: AES256
+          ADS_SNAPSHOT_MODE: slim
       Policies:
       - AWSLambdaBasicExecutionRole
       - S3WritePolicy:
           BucketName: nova-data-bucket-finzell
+      - Statement:
+        - Effect: Allow
+          Action: secretsmanager:GetSecretValue
+          Resource:
+            Fn::Sub: arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ADSQueryToken*
       ImageUri: stagewritemetadatafunction:stage-write
     Metadata:
       DockerBuildArgs:

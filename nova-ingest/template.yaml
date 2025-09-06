@@ -128,15 +128,19 @@ Resources:
         Variables:
           ADS_API_URL: https://api.adsabs.harvard.edu/v1/search/query
           ADS_SECRET_NAME: !Ref ADSSecretName
+          ADS_RESOLVER_URL: https://api.adsabs.harvard.edu/v1/resolver
+          RESOLVER_MODE: smart
+          RESOLVER_TIMEOUT: "6"        # seconds per resolver call
+          RESOLVER_MAX_CALLS: "200"    # safety cap per Lambda invocation
           # Set ADS_TOKEN securely in prod; leave blank in code and fail fast if absent
           # Example (optional): ADS_TOKEN: "{{resolve:secretsmanager:ads/dev/token:SecretString:token}}"
       Policies:
         - AWSLambdaBasicExecutionRole
         - Statement:
-            - Effect: Allow
-              Action:
-                - secretsmanager:GetSecretValue
-              Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ADSSecretName}*"
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+            Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ADSSecretName}*"
     Metadata:
       Dockerfile: Dockerfile
       # DockerContext: src/query_ads_bibcodes
@@ -156,13 +160,21 @@ Resources:
         Variables:
           STAGING_BUCKET: nova-data-bucket-finzell
           STAGING_PREFIX: staging/metadata
+          ADS_STAGING_PREFIX: staging/ads
           WRITE_LATEST: "true"
+          DROP_ADS_FROM_PAYLOAD: "true"
+          ADS_SECRET_NAME: ADSQueryToken
           S3_SSE: AES256
+          ADS_SNAPSHOT_MODE: slim
           # For local only: S3_ENDPOINT_URL: http://host.docker.internal:4566
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3WritePolicy:
             BucketName: nova-data-bucket-finzell
+        - Statement:                    # read the secret at runtime
+          - Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ADSQueryToken*
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: .

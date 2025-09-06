@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS photo_table (
-  photo_table_id  BIGINT PRIMARY KEY,                  -- PK
+  nova_id         BIGINT PRIMARY KEY,                  -- PK
   spectral_regime TEXT        NOT NULL,
   obs_date        DATE              NOT NULL,
   obs_time_utc    TIME WITHOUT TIME ZONE NOT NULL,

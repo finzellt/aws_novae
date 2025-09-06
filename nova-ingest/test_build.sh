@@ -74,6 +74,6 @@ EXEC_ARN=$(aws stepfunctions start-execution \
   --query executionArn --output text)
 
 echo "Execution started: $EXEC_ARN"
-sleep 2
+sleep 3
 echo "Describing execution..."
 aws stepfunctions describe-execution --execution-arn "$EXEC_ARN"

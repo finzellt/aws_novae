@@ -37,19 +37,34 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 import boto3, json
 import requests
+from urllib.parse import urlparse
 
 ADS_API_URL = os.getenv("ADS_API_URL", "https://api.adsabs.harvard.edu/v1/search/query")
 
 # We still request these (to derive OA & heuristics), but won't return the heavy ones in payload
 ADS_FIELDS = [
-    "bibcode","bibstem","doctype","property","links_data","link","identifier",
+    "bibcode","bibstem","doctype","property","identifier",
     "date","entry_date","data","author","abstract","title"
 ]
 
 PRIORITY_BIBSTEMS = {"IAUC","CBET","ATel","yCat"}
 
+RESOLVER_URL = os.getenv("ADS_RESOLVER_URL", "https://api.adsabs.harvard.edu/v1/resolver")
+RESOLVER_MODE = os.getenv("RESOLVER_MODE", "smart").lower()  # smart | all
+RESOLVER_TIMEOUT = float(os.getenv("RESOLVER_TIMEOUT", "6"))
+RESOLVER_MAX_CALLS = int(os.getenv("RESOLVER_MAX_CALLS", "200"))
+
+_ARXIV_RE = re.compile(r"arxiv:(?P<id>\d{4}\.\d{4,5}(v\d+)?)", re.I)
+
 # Accept token from either env var
 def _get_ads_token() -> str:
+    '''
+    Retrieves the ADS API token from environment variables or AWS Secrets Manager.
+
+    outputs:
+        str: The ADS API token.
+    '''
+
     # 1) env var (useful for local/dev or Option A)
     env = os.getenv("ADS_TOKEN") or os.getenv("ADS_DEV_KEY")
     if env:
@@ -66,11 +81,121 @@ def _get_ads_token() -> str:
     except Exception:
         return val
 
+def _first_arxiv_id(identifiers):
+    for x in identifiers or []:
+        m = _ARXIV_RE.match(str(x))
+        if m: return m.group("id")
+    return None
+
+def _ads_abs_url(bib: str) -> str:
+    # Stable abstract URL users can access
+    return f"https://ui.adsabs.harvard.edu/abs/{bib}/abstract"
+
+def _atel_link(code: str) -> str:
+    # Find the number between "ATel" and "...."
+    try:
+        number = code.split("ATel.")[1].split("....")[0]
+        return f"https://www.astronomerstelegram.org/?read={number}"
+    except (IndexError, ValueError):
+        raise ValueError("Input string is not in the expected format.")
+
+def is_good_url(url: str) -> bool:
+    return "validate" not in url.lower()
+
+ERROR_SNIPPET = "The requested resource does not exist"
+
+def is_real_resource(url: str, timeout: int = 8) -> bool:
+    try:
+        r = requests.get(url, timeout=timeout)
+        if r.status_code >= 400:
+            return False
+        text = r.text.lower()
+        if ERROR_SNIPPET.lower() in text:
+            return False
+        return True
+    except requests.RequestException:
+        return False
+
+def _resolve_open_access_links(url: str) -> str:
+    """
+    Takes a potential URL and determines if it is valid.
+    
+    - If the URL resolves (with redirects), returns the resolved URL.
+    - If it doesn't redirect, returns the original URL.
+    - If the URL isn't valid or can't be reached, returns an empty string.
+    """
+    try:
+        # Ensure the URL has a scheme; if not, assume http
+        parsed = urlparse(url)
+        if not parsed.scheme:
+            url = "http://" + url
+            parsed = urlparse(url)
+
+        # If still invalid (no netloc), return empty string
+        if not parsed.netloc:
+            return ""
+
+        # Attempt to resolve the URL (follow redirects)
+        response = requests.head(url, allow_redirects=True, timeout=5)
+        
+        # Some servers don’t respond well to HEAD; fallback to GET
+        if response.status_code >= 400:
+            response = requests.get(url, allow_redirects=True, timeout=5)
+        
+        # Return the final resolved URL
+        return response.url
+
+    except Exception:
+        # Invalid URL or network error
+        return ""
+
+
+def _resolve_open_access_via_resolver(bib: str) -> tuple[Optional[str], Optional[str]]:
+    '''
+    Attempts to resolve open access links for a given bibcode via the ADS resolver.
+
+    inputs:
+        bib (str): The bibcode to resolve.
+        token (str): The ADS API token.
+
+    outputs:
+        tuple[Optional[str], Optional[str]]: The resolved URL and the source type (if found).
+    '''
+
+    potential_suffixes = ["ADS_PDF","PUB_PDF","EPRINT_PDF"]
+    # potential_suffixes = ["esource"]
+    for suffix in potential_suffixes:
+        url = f"https://ui.adsabs.harvard.edu/link_gateway/{bib}/{suffix}"
+        resolved_url = _resolve_open_access_links(url)
+        if resolved_url and (("pdf" in resolved_url and is_good_url(resolved_url)) or (is_good_url(resolved_url) and is_real_resource(resolved_url))):
+            return resolved_url, suffix
+    return None, None
+
 def _quote(s: str) -> str:
+    '''
+    Ensure output is a string, regardless of input type. Quotes a string for inclusion in an ADS 
+    query. Adds escape character for internal quotes. 
+
+    inputs:
+        s (str): The input string to quote.
+
+    outputs:
+        str: The quoted string.
+    '''
     s = (s or "").strip()
     return '"' + s.replace('"', r'\"') + '"' if s else ""
 
 def _collect_names(event: Dict[str, Any]) -> List[str]:
+    '''
+    Collects names from the event dictionary. Includes candidate, preferred names
+    and aliases. Ensures that names are strings with no extra whitespace, and are unique.
+
+    inputs:
+        event (Dict[str, Any]): The event dictionary containing name information.
+
+    outputs:
+        List[str]: A list of collected names.
+    '''
     names: List[str] = []
     for k in ("candidate_name", "preferred_name"):
         v = event.get(k)
@@ -96,6 +221,18 @@ def _build_ads_query(names: List[str]) -> str:
     return f"full:({ ' OR '.join(qs) }) AND collection:astronomy"
 
 def _ads_request(query: str, token: str, rows: int = 2000) -> List[Dict[str, Any]]:
+    '''
+    Sends a request to the ADS API with the specified query and returns the response.
+
+    inputs:
+        query (str): The ADS query string.
+        token (str): The ADS API token.
+        rows (int): The number of rows to return (default: 2000).
+
+    outputs:
+        List[Dict[str, Any]]: The list of documents returned by the ADS API.
+    '''
+    
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
     params = {"q": query, "fl": ",".join(ADS_FIELDS), "rows": rows, "sort": "date asc"}
     resp = requests.get(ADS_API_URL, headers=headers, params=params, timeout=25)
@@ -109,13 +246,15 @@ def _as_label_url(ld: Any) -> Tuple[str, str]:
     if isinstance(ld, dict):
         label = (ld.get("title") or ld.get("type") or ld.get("link_type") or "").strip().lower()
         url = (ld.get("url") or ld.get("link") or ld.get("value") or "").strip()
+        print(f"LINK FOUND: {label} ({url})")
         return label, url
     if isinstance(ld, str):
         return "", ld.strip()
     return "", ""
 
 def _collect_links(doc: Dict[str, Any]) -> List[Tuple[str, str]]:
-    raw = doc.get("links_data") or doc.get("link")
+    # raw = doc.get("links_data") or doc.get("link")
+    raw = doc.get("links_data")
     if not raw: return []
     if isinstance(raw, (list, tuple)): return [_as_label_url(x) for x in raw]
     if isinstance(raw, dict) or isinstance(raw, str): return [_as_label_url(raw)]
@@ -123,8 +262,16 @@ def _collect_links(doc: Dict[str, Any]) -> List[Tuple[str, str]]:
 
 def evaluate_open_access(doc: Dict[str, Any]) -> Tuple[bool, Optional[str], str]:
     """
-    (is_open_access, best_free_url, reason):
-    reasons: 'arxiv' | 'ads' | 'publisher_oa' | 'property_only' | 'none'
+    Determines if a document is open access and returns relevant information.
+
+    inputs:
+        doc (Dict[str, Any]): The document dictionary to evaluate.
+
+    outputs:
+        Tuple[bool, Optional[str], str]: A tuple containing:
+            - is_open_access (bool): Whether the document is open access.
+            - best_free_url (Optional[str]): The best available free URL.
+            - reason (str): The reason for the open access status.
     """
     props = {str(p).lower() for p in (doc.get("property") or [])}
     links = _collect_links(doc)
@@ -188,35 +335,86 @@ def _pick_discovery(records: List[Dict[str, Any]]) -> Tuple[Optional[str], Optio
     return best.get("bibcode"), best.get(basis_used) if basis_used else None, basis_used
 
 # ---------- normalization to a SLIM record ----------
-def _to_slim(doc: Dict[str, Any]) -> Dict[str, Any]:
-    # bibstem: list -> first string
+def _to_slim_with_resolver(doc: Dict[str, Any], token: str, ctx: Dict[str,int]) -> Dict[str, Any]:
+    '''
+    Transforms the input document into a slimmed-down version with resolver information.
+    Adds open access information, as well as an OA URL (if available). Adds other metadata 
+    information used to determine if source is good for harvesting.
+
+    inputs:
+        doc (Dict[str, Any]): The document dictionary to evaluate.
+        token (str): The ADS API token.
+        ctx (Dict[str, int]): The context dictionary containing request metadata.
+
+    outputs:
+        Dict[str, Any]: The slimmed-down document with resolver information.
+    '''
+    
+    
     raw_bibstem = doc.get("bibstem")
     bibstem = raw_bibstem[0] if isinstance(raw_bibstem, list) and raw_bibstem else raw_bibstem
-
-    # basic deriveds
     authors = doc.get("author") or []
-    authors_count = len(authors)
     has_abs = bool((doc.get("abstract") or "").strip())
-    has_data_links = bool(doc.get("data") or [])
+    props = {str(p).lower() for p in (doc.get("property") or [])}
+    doctype = (doc.get("doctype") or "").lower()
+    bib = doc.get("bibcode")
 
-    is_oa, free_url, oa_reason = evaluate_open_access(doc)
+    # Defaults
+    is_oa = False
+    oa_url = None
+    oa_reason = "none"
+
+    # 0) circulars are public HTML
+    if doctype == "circular" and bib and bibstem in {"ATel"}:
+        is_oa, oa_url, oa_reason = True, _atel_link(bib), "circular_html"
+
+    elif doctype == "circular":
+        is_oa, oa_url, oa_reason = True, _ads_abs_url(bib), "circular_html"
+
+    # 1) arXiv present → synthesize PDF (no resolver call needed)
+    if not is_oa:
+        aid = _first_arxiv_id(doc.get("identifier"))
+        if aid:
+            is_oa, oa_url, oa_reason = True, f"https://arxiv.org/pdf/{aid}.pdf", "arxiv"
+
+    # 2) property flags indicate OA → try resolver for publisher URL
+    if not is_oa and ({"openaccess","pub_openaccess","eprint_openaccess","ads_openaccess"} & props):
+        if ctx["resolver_calls"] < RESOLVER_MAX_CALLS or RESOLVER_MODE == "all":
+            url, reason = _resolve_open_access_via_resolver(bib)
+            # print(bib, url, reason)
+            ctx["resolver_calls"] += 1
+            if url:
+                is_oa, oa_url, oa_reason = True, url, "publisher_oa" if reason=="publisher" else reason
+            else:
+                is_oa, oa_url, oa_reason = True, None, "property_only"
+
+    # 3) fallback: if allowed, try resolver for ADS PDFs/scans even w/o flags
+    if not is_oa and RESOLVER_MODE == "all" and ctx["resolver_calls"] < RESOLVER_MAX_CALLS:
+        url, reason = _resolve_open_access_via_resolver(bib)
+        ctx["resolver_calls"] += 1
+        if url in (None, ""):
+            pass
+        elif reason in {"ads","arxiv"}:
+            is_oa, oa_url, oa_reason = True, url, reason
+        elif reason == "publisher":
+            # don’t claim OA unless props hinted; keep as non-OA
+            pass
 
     return {
-        "bibcode": doc.get("bibcode"),
-        "bibstem": bibstem,                     # str
+        "bibcode": bib,
+        "bibstem": bibstem,
         "doctype": doc.get("doctype"),
         "date": doc.get("date"),
         "entry_date": doc.get("entry_date"),
-        "authors_count": authors_count,         # int (no author list)
-        "has_abstract": has_abs,                # bool (no abstract text)
-        "has_data_links": has_data_links,       # bool (no 'data' array)
-        "is_open_access": is_oa,                # bool
-        "open_access_url": free_url,            # str | None
-        "oa_reason": oa_reason,                 # str
-        # keep a tiny hint for arXiv without exposing full identifier list
-        "has_arxiv_id": any(isinstance(x,str) and x.lower().startswith("arxiv:")
-                            for x in (doc.get("identifier") or [])),
+        "authors_count": len(authors),
+        "has_abstract": has_abs,
+        "has_data_links": bool(doc.get("data") or []),
+        "is_open_access": is_oa,
+        "open_access_url": oa_url,
+        "oa_reason": oa_reason,
+        "has_arxiv_id": _first_arxiv_id(doc.get("identifier")) is not None,
     }
+
 
 def handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     if not isinstance(event, dict) or event.get("status") != "OK":
@@ -226,12 +424,15 @@ def handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     if not token:
         raise RuntimeError("ADS token not configured (set ADS_TOKEN or ADS_DEV_KEY).")
 
+    # fetch docs_raw via Search API (same as before)
+    docs_raw = _ads_request(_build_ads_query(_collect_names(event)), token)
+
+    # Build SLIM records with resolver-based OA
+    ctx = {"resolver_calls": 0}
+    # Build SLIM records for the payload
+    records_slim = [_to_slim_with_resolver(d, token, ctx) for d in docs_raw]
     names = _collect_names(event)
     query = _build_ads_query(names)
-    docs_raw = _ads_request(query, token)
-
-    # Build SLIM records for the payload
-    records_slim = [_to_slim(d) for d in docs_raw]
 
     # Flat list of bibcodes
     bibcodes = [r["bibcode"] for r in records_slim if r.get("bibcode")]
