@@ -1,0 +1,12 @@
+{
+  "Comment": "nova-data-harvest (minimal) - initialize and stop",
+  "StartAt": "InitContext",
+  "States": {
+    "InitContext": {
+      "Type": "Task",
+      "Resource": "${InitContextArn}",
+      "ResultPath": "$.init",
+      "End": true
+    }
+  }
+}

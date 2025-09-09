@@ -1,0 +1,10 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "nova-data-harvest"
+resolve_s3 = true
+s3_prefix = "nova-data-harvest"
+region = "us-east-1"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "ProjectName=\"nova-data-harvest\" LogLevel=\"INFO\" DataBucketName=\"nova-data-bucket-finzell\""
+image_repositories = ["InitContextFunction=433980486697.dkr.ecr.us-east-1.amazonaws.com/novadataharvestbb4415fb/initcontextfunctionfd961f6frepo"]

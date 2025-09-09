@@ -43,7 +43,7 @@ ADS_API_URL = os.getenv("ADS_API_URL", "https://api.adsabs.harvard.edu/v1/search
 
 # We still request these (to derive OA & heuristics), but won't return the heavy ones in payload
 ADS_FIELDS = [
-    "bibcode","bibstem","doctype","property","identifier",
+    "bibcode","bibstem","doctype","property","identifier","data",
     "date","entry_date","data","author","abstract","title"
 ]
 
@@ -254,7 +254,8 @@ def _as_label_url(ld: Any) -> Tuple[str, str]:
 
 def _collect_links(doc: Dict[str, Any]) -> List[Tuple[str, str]]:
     # raw = doc.get("links_data") or doc.get("link")
-    raw = doc.get("links_data")
+    # raw = doc.get("links_data")
+    raw = doc.get("data")
     if not raw: return []
     if isinstance(raw, (list, tuple)): return [_as_label_url(x) for x in raw]
     if isinstance(raw, dict) or isinstance(raw, str): return [_as_label_url(raw)]
@@ -358,6 +359,7 @@ def _to_slim_with_resolver(doc: Dict[str, Any], token: str, ctx: Dict[str,int]) 
     props = {str(p).lower() for p in (doc.get("property") or [])}
     doctype = (doc.get("doctype") or "").lower()
     bib = doc.get("bibcode")
+    data = doc.get("data") or []
 
     # Defaults
     is_oa = False
@@ -412,6 +414,8 @@ def _to_slim_with_resolver(doc: Dict[str, Any], token: str, ctx: Dict[str,int]) 
         "is_open_access": is_oa,
         "open_access_url": oa_url,
         "oa_reason": oa_reason,
+        "has_data": bool(data),
+        "data": data,
         "has_arxiv_id": _first_arxiv_id(doc.get("identifier")) is not None,
     }
 

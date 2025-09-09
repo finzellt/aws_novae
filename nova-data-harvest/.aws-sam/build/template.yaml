@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Nova Data Harvest - state machine + lambdas
+Parameters:
+  ProjectName:
+    Type: String
+    Default: nova-data-harvest
+  LogLevel:
+    Type: String
+    Default: INFO
+  DataBucketName:
+    Type: String
+    Default: nova-data-bucket-finzell
+    Description: S3 bucket holding inputs/outputs
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Architectures:
+    - arm64
+    Environment:
+      Variables:
+        APP_NAME: nova-data-harvest
+        S3_BUCKET: nova-data-bucket-finzell
+        ADS_SNAPSHOT_PREFIX: harvest/snapshots/ads/
+        MANIFEST_PREFIX: harvest/manifests/
+        RECENCY_BOOST_DAYS: '90'
+Resources:
+  InitContextFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: nova-data-harvest-init-context
+      PackageType: Image
+      ImageConfig:
+        Command:
+        - app.handler
+      Description: Initializes run context for nova-data-harvest
+      Policies:
+      - S3ReadPolicy:
+          BucketName:
+            Ref: DataBucketName
+      - S3WritePolicy:
+          BucketName:
+            Ref: DataBucketName
+      ImageUri: initcontextfunction:latest
+    Metadata:
+      DockerContext: /Users/tfinzell/Git/aws_novae/nova-data-harvest
+      DockerTag: latest
+      Dockerfile: Dockerfile
+      SamResourceId: InitContextFunction
+  StateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: nova-data-harvest
+      DefinitionUri: ../../statemachine/nova-data-harvest.asl.json
+      DefinitionSubstitutions:
+        InitContextArn:
+          Fn::GetAtt:
+          - InitContextFunction
+          - Arn
+      Policies:
+      - LambdaInvokePolicy:
+          FunctionName:
+            Ref: InitContextFunction
+Outputs:
+  StateMachineArn:
+    Value:
+      Ref: StateMachine
+  InitContextFunctionArn:
+    Value:
+      Fn::GetAtt:
+      - InitContextFunction
+      - Arn

@@ -30,8 +30,10 @@ Parameters:
     Type: String
     Default: ADSQueryToken
     Description: Name of the Secrets Manager secret holding the ADS token
-
-
+  ADSQueueTableName:
+    Type: String
+    Default: nova-ingest-ads-queue
+    Description: Existing DynamoDB table name for ADS snapshot queue
 
 Globals:
   Function:
@@ -122,7 +124,7 @@ Resources:
     Properties:
       FunctionName: nova-ingest-query-ads-bibcodes
       PackageType: Image
-      Timeout: 15
+      Timeout: 20
       MemorySize: 512
       Environment:
         Variables:
@@ -163,10 +165,18 @@ Resources:
           ADS_STAGING_PREFIX: staging/ads
           WRITE_LATEST: "true"
           DROP_ADS_FROM_PAYLOAD: "true"
-          ADS_SECRET_NAME: ADSQueryToken
-          S3_SSE: AES256
-          ADS_SNAPSHOT_MODE: slim
-          # For local only: S3_ENDPOINT_URL: http://host.docker.internal:4566
+          ADS_SNAPSHOT_MODE: slim   # write slim snapshot for next machine
+          # --- New for eligibility/priority ---
+          TOP_DOCTYPES: "circular,catalog,dataset"
+          BIG_JOURNAL_BIBSTEMS: "mnras,aj,apj,a&a,pasp"
+          EXCLUDED_DOCTYPES: "proposal,book,bookreview,editorial,inbook,obituary,inproceedings,phdthesis,talk,software"
+          PRIORITY_P0: "10"
+          PRIORITY_P1: "50"
+          PRIORITY_P2: "90"
+          PRIORITY_RECENCY_MAX_BONUS: "5"
+          PRIORITY_RECENCY_WINDOW_DAYS: "365"
+          ELIGIBILITY_RULE_VERSION: "2025-09-07"
+          ADS_QUEUE_TABLE: !Ref ADSQueueTableName
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3WritePolicy:
@@ -175,6 +185,14 @@ Resources:
           - Effect: Allow
             Action: secretsmanager:GetSecretValue
             Resource: !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:ADSQueryToken*
+          - Effect: Allow
+            Action:
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:GetItem
+            Resource:
+              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ADSQueueTableName}"
+              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ADSQueueTableName}/index/*"
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: .
