@@ -15,12 +15,12 @@
       "Choices": [
         { "Variable": "$.resolver.Payload.status", "StringEquals": "NOT_FOUND", "Next": "DoneNoop" }
       ],
-      "Default": "Validate"
+      "Default": "DetermineHost"
     },
-    "Validate": {
+    "DetermineHost": {
       "Type": "Task",
       "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": { "FunctionName": "${ValidateArn}", "Payload.$": "$.resolver.Payload" },
+      "Parameters": { "FunctionName": "${DetermineHostArn}", "Payload.$": "$.resolver.Payload" },
       "OutputPath": "$.Payload",
       "Next": "QueryADSBibcodes"
     },

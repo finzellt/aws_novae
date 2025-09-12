@@ -284,7 +284,7 @@ def handler(event: Dict[str, Any], _context) -> Dict[str, Any]:
     - Returns original event with staging pointers and enqueue summary. Optionally trims ads payload.
     """
     if not isinstance(event, dict) or event.get("status") != "OK":
-        return {"status": "BAD_REQUEST", "reason": "Expected upstream status=OK", "input": event}
+        return {"status": "BAD_REQUEST", "reason": "3 Expected upstream status=OK", "input": event}
 
     preferred = (event.get("preferred_name") or event.get("candidate_name") or "").strip() or "Unknown"
     name_norm = event.get("name_norm") or _slugify(preferred)

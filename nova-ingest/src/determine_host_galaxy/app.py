@@ -27,6 +27,8 @@ import io
 import os
 import pathlib
 from typing import Any, Dict, List, Optional, Tuple
+from nova_schema.mappings import load_canonical, dump_canonical, merge_updates  # shared helpers
+from pydantic import ValidationError
 
 # import boto3
 import os, boto3
@@ -52,6 +54,10 @@ _bootstrap_astropy()
 
 from astropy.coordinates import SkyCoord
 import astropy.units as u
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(os.getenv("LOG_LEVEL", "INFO"))
 
 # --- Config via env vars ---
 GALAXY_LIST_URI = os.getenv(
@@ -141,6 +147,35 @@ def _nearest_galaxy(ra_deg: float, dec_deg: float) -> Tuple[Tuple[str, float, fl
     return best, best_sep
 
 
+def _update_canonical(event: Dict[str, Any], out: Dict[str,any]):
+    canonical_prev: Dict[str, Any] = event.get("canonical") or {}
+    # 1) Load previous canonical (re-validates it)
+    nova = load_canonical(canonical_prev)
+
+    # 2) Map step-specific outputs -> schema fields
+    host = out.get("host_galaxy")
+    confidence = out.get("external_galaxy_confidence")
+
+    updates = {}
+    if host not in (None, ""):
+        updates["host_gal"] = host
+    if confidence is not None:
+        updates["host_gal_confidence"] = confidence
+
+    # 3) Apply updates and re-validate
+    try:
+        nova = merge_updates(nova, updates)     # overrides existing values; use fill_missing if you prefer add-only
+    except ValidationError as e:
+        # Log helpful details, then re-raise so Step Functions can retry/fail visibly
+        logger.error("Nova validation failed after host-galaxy updates: %s", e)
+        for err in e.errors():
+            logger.error("field=%s msg=%s input=%s", ".".join(map(str, err.get("loc",[]))), err.get("msg"), err.get("input"))
+        raise
+
+    # 4) Serialize back for the next state
+    return {"canonical": dump_canonical(nova)}
+
+
 def determine_host(event: Dict[str, Any]) -> Dict[str, Any]:
     # Validate input
     if not isinstance(event, dict) or event.get("status") != "OK":
@@ -189,6 +224,8 @@ def determine_host(event: Dict[str, Any]) -> Dict[str, Any]:
     out["host_galaxy"] = host
     out["external_galaxy_confidence"] = confidence
     out["host_method"] = method
+
+    out["canonical"] = _update_canonical(event,out)
     return out
 
 

@@ -72,23 +72,23 @@ Resources:
       DockerBuildArgs:
         HANDLER_PATH: src/resolve_simbad_metadata/app.py   # for resolver
 
-  ValidateNovaAndCoordsFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: nova-ingest-validate-nova-and-coords
-      PackageType: Image         # or Zip if you prefer
-      # If you’re reusing the same image as the resolver, you can just point to the same ECR ImageUri
-      # ImageUri: <your ECR image URI with astropy>
-      Description: Validate that the candidate is a nova and has valid coords.
-      # Architectures: x86_64  # or arm64, matching your image
-      Policies:
-        - AWSLambdaBasicExecutionRole
-    Metadata:
-      Dockerfile: Dockerfile
-      DockerContext: .
-      DockerTag: validator
-      DockerBuildArgs:
-        HANDLER_PATH: src/validate_nova_and_coords/app.py   # for validator
+  # ValidateNovaAndCoordsFunction:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     FunctionName: nova-ingest-validate-nova-and-coords
+  #     PackageType: Image         # or Zip if you prefer
+  #     # If you’re reusing the same image as the resolver, you can just point to the same ECR ImageUri
+  #     # ImageUri: <your ECR image URI with astropy>
+  #     Description: Validate that the candidate is a nova and has valid coords.
+  #     # Architectures: x86_64  # or arm64, matching your image
+  #     Policies:
+  #       - AWSLambdaBasicExecutionRole
+  #   Metadata:
+  #     Dockerfile: Dockerfile
+  #     DockerContext: .
+  #     DockerTag: validator
+  #     DockerBuildArgs:
+  #       HANDLER_PATH: src/validate_nova_and_coords/app.py   # for validator
 
   DetermineHostGalaxyFunction:
     Type: AWS::Serverless::Function
@@ -124,7 +124,7 @@ Resources:
     Properties:
       FunctionName: nova-ingest-query-ads-bibcodes
       PackageType: Image
-      Timeout: 20
+      Timeout: 25
       MemorySize: 512
       Environment:
         Variables:
@@ -219,7 +219,7 @@ Resources:
       DefinitionUri: statemachines/nova_ingest.asl.json
       DefinitionSubstitutions:
         ResolveSimbadArn: !GetAtt ResolveSimbadMetadataFunction.Arn
-        ValidateArn: !GetAtt ValidateNovaAndCoordsFunction.Arn
+        # ValidateArn: !GetAtt ValidateNovaAndCoordsFunction.Arn
         DetermineHostArn: !GetAtt DetermineHostGalaxyFunction.Arn       # NEW
         QueryAdsArn: !GetAtt QueryADSBibcodesFunction.Arn
         StageWriteArn: !GetAtt StageWriteMetadataFunction.Arn
@@ -235,8 +235,8 @@ Resources:
         # Allows the state machine to invoke your two Lambdas
         - LambdaInvokePolicy:
             FunctionName: !Ref ResolveSimbadMetadataFunction
-        - LambdaInvokePolicy:
-            FunctionName: !Ref ValidateNovaAndCoordsFunction
+        # - LambdaInvokePolicy:
+        #     FunctionName: !Ref ValidateNovaAndCoordsFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref DetermineHostGalaxyFunction   # <-- add this
         - LambdaInvokePolicy:

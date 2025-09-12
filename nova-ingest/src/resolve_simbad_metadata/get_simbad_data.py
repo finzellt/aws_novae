@@ -104,33 +104,6 @@ def _is_nova(object_types: Optional[Iterable[str]]) -> bool:
             return True
     return False
 
-# def to_canonical_or_die(data: dict) -> dict:
-#     try:
-#         nova = Nova(**data)  # your Pydantic model
-#         return nova.model_dump(mode="json")
-#     except ValidationError as e:
-#         # Helpful, compact diagnostics
-#         logger.error("Nova validation failed (%d error[s])", len(e.errors()))
-#         for err in e.errors():
-#             loc = ".".join(str(p) for p in err.get("loc", []))
-#             msg = err.get("msg", "")
-#             typ = err.get("type", "")
-#             bad = err.get("input", None)
-#             # Truncate long values for logs
-#             bad_preview = bad if isinstance(bad, (int, float, type(None))) else repr(bad)[:500]
-#             logger.error("  field=%s type=%s msg=%s input=%s", loc, typ, msg, bad_preview)
-#         # Extra context: which keys you sent, and value types
-#         try:
-#             types = {k: type(v).__name__ for k, v in data.items()}
-#             logger.error("Payload keys: %s", sorted(data.keys()))
-#             logger.error("Payload types: %s", types)
-#             logger.error("Payload JSON (truncated): %s", json.dumps(data, default=str)[:2000])
-#         except Exception:
-#             pass
-#         raise
-
-
-
 def normalize_name(s: str) -> str:
     """Lowercase alnum-only for idempotent keys (e.g., DynamoDB/S3 markers)."""
     return re.sub(r"[^A-Za-z0-9]+", "", s).lower()
@@ -183,9 +156,7 @@ def resolve_simbad(candidate_name: str) -> Dict[str, Any]:
     main_id = _table_cell(row, "MAIN_ID") or name
     if main_id.startswith("V* "):
         main_id = main_id[3:]
-    # logger.warning(f"SIMBAD row: {row}")
-    # logger.warning(f"Atropy version: {astropy.__version__}")
-    # logger.warning(f"Astroquery version: {astroquery.__version__}")
+
     ra_s = _table_cell(row, "RA_d")
     dec_s = _table_cell(row, "DEC_d")
     if ra_s is None or dec_s is None:
@@ -232,33 +203,9 @@ def resolve_simbad(candidate_name: str) -> Dict[str, Any]:
         add_alias(a)
     add_alias(name)
 
-    # result: Dict[str, Any] = {
-    #     "status": "OK",
-    #     "candidate_name": name,
-    #     "preferred_name": main_id,
-    #     "name_norm": normalize_name(main_id),
-    #     "coords": {"ra_deg": ra_deg, "dec_deg": dec_deg},
-    #     "object_types": object_types,
-    #     "aliases": aliases,
-    #     "simbad": {"main_id": main_id, "raw_ids": raw_ids},
-    # }
-    # return result
     c_icrs = SkyCoord(float(ra_deg) * u.deg, float(dec_deg) * u.deg, frame="icrs")
     const_short = get_constellation(c_icrs, short_name=True)
 
-
-    # mapped_dict = {"nova_id":hash(main_id) & 0x7FFF_FFFF,  "primary_name":main_id,
-    # "name_norm":normalize_name(main_id),
-    # "ra_angle":ra_deg,
-    # "dec_angle":dec_deg,
-    # "obj_types":object_types or None,
-    # "aliases":aliases or None,
-    # "gal_coords_l":float(c_icrs.galactic.l.wrap_at(360 * u.deg).deg),
-    # "gal_coords_b":float(c_icrs.galactic.b.deg),
-    # "ingest_source":"simbad",
-    # "constellation":const_short,
-    # }
-    # canonical = to_canonical_or_die(mapped_dict)
     try:
         nova = Nova(
             nova_id=hash(main_id) & 0x7FFF_FFFF,             # you’ll likely replace with your real nova_id
@@ -290,7 +237,6 @@ def resolve_simbad(candidate_name: str) -> Dict[str, Any]:
         "aliases": aliases,
         "simbad": {"main_id": main_id, "raw_ids": aliases},  # keep legacy shape if you had it
         "canonical": canonical,
-        # "ingest_run_id": canonical.get("ingest_run_id"),
     }
 
 

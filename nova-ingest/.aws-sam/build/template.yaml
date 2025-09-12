@@ -74,22 +74,6 @@ Resources:
       DockerTag: resolver
       Dockerfile: Dockerfile
       SamResourceId: ResolveSimbadMetadataFunction
-  ValidateNovaAndCoordsFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: nova-ingest-validate-nova-and-coords
-      PackageType: Image
-      Description: Validate that the candidate is a nova and has valid coords.
-      Policies:
-      - AWSLambdaBasicExecutionRole
-      ImageUri: validatenovaandcoordsfunction:validator
-    Metadata:
-      DockerBuildArgs:
-        HANDLER_PATH: src/validate_nova_and_coords/app.py
-      DockerContext: /Users/tfinzell/Git/aws_novae/nova-ingest
-      DockerTag: validator
-      Dockerfile: Dockerfile
-      SamResourceId: ValidateNovaAndCoordsFunction
   DetermineHostGalaxyFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -123,7 +107,7 @@ Resources:
     Properties:
       FunctionName: nova-ingest-query-ads-bibcodes
       PackageType: Image
-      Timeout: 20
+      Timeout: 25
       MemorySize: 512
       Environment:
         Variables:
@@ -223,10 +207,6 @@ Resources:
           Fn::GetAtt:
           - ResolveSimbadMetadataFunction
           - Arn
-        ValidateArn:
-          Fn::GetAtt:
-          - ValidateNovaAndCoordsFunction
-          - Arn
         DetermineHostArn:
           Fn::GetAtt:
           - DetermineHostGalaxyFunction
@@ -254,9 +234,6 @@ Resources:
       - LambdaInvokePolicy:
           FunctionName:
             Ref: ResolveSimbadMetadataFunction
-      - LambdaInvokePolicy:
-          FunctionName:
-            Ref: ValidateNovaAndCoordsFunction
       - LambdaInvokePolicy:
           FunctionName:
             Ref: DetermineHostGalaxyFunction

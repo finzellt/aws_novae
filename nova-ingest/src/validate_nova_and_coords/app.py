@@ -117,7 +117,7 @@ def _valid_coords(ra_deg: Any, dec_deg: Any) -> bool:
 def validate_and_enrich(event: Dict[str, Any]) -> Dict[str, Any]:
     # Basic shape checks
     if not isinstance(event, dict) or event.get("status") != "OK":
-        return {"status": "BAD_REQUEST", "reason": "Upstream resolver did not return status=OK"}
+        return {"status": "BAD_REQUEST", "reason": "2 Upstream resolver did not return status=OK"}
 
     coords = event.get("coords") or {}
     ra_deg = coords.get("ra_deg")
