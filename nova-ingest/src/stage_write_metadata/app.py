@@ -27,7 +27,6 @@ HARVEST_TABLE = os.environ["HARVEST_QUEUE_TABLE"]  # fail fast if missing
 AWS_REGION = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
 
 s3 = boto3.client("s3")
-# ddb = boto3.client("dynamodb")
 
 dynamodb = boto3.resource("dynamodb", region_name=AWS_REGION) if HARVEST_TABLE else None
 queue_table = dynamodb.Table(HARVEST_TABLE) if dynamodb and HARVEST_TABLE else None
@@ -53,65 +52,6 @@ def _to_dynamo(obj: Any) -> Any:
         return [_to_dynamo(v) for v in obj]
     return _to_decimal(obj)
 
-# def _is_nonempty_list(x: Any) -> bool:
-#     return isinstance(x, list) and len(x) > 0
-
-# def _priority_for(candidate: Dict[str, Any]) -> int:
-#     # Per-data entries will carry a single data item; overall entries may have a list or None
-#     data_field = candidate.get("data")
-#     if isinstance(data_field, dict) and data_field:  # per-data entry
-#         return 200
-#     if _is_nonempty_list(data_field):               # overall with list of data
-#         # overall bib source itself is still prioritized by doctype, not 200
-#         pass
-#     doctype = (candidate.get("doctype") or "").lower()
-#     if doctype in {"database", "catalog"}:
-#         return 100
-#     if doctype == "circular":
-#         return 50
-#     if doctype == "article":
-#         return 10
-#     return 10  # default low priority
-
-# def _stable_candidate_id(base: Dict[str, Any]) -> str:
-#     """
-#     Deterministic ID for upsert. Hash minimal identity:
-#       bibcode | source_type | doctype | best_free_url | data_id(if any)
-#     """
-#     bib = str(base.get("bibcode") or "")
-#     st  = str(base.get("source_type") or "")
-#     dt  = str(base.get("doctype") or "")
-#     url = str(base.get("best_free_url") or "")
-#     data_id = ""
-#     data_field = base.get("data")
-#     if isinstance(data_field, dict):
-#         # try a stable identity for a single data source
-#         data_id = str(data_field.get("id") or data_field.get("name") or json.dumps(data_field, sort_keys=True))
-#     raw = "|".join([bib, st, dt, url, data_id])
-#     return hashlib.sha1(raw.encode("utf-8")).hexdigest()
-
-# def _expand_candidates(cands: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-#     """
-#     For any candidate with a non-empty 'data' list, keep the original candidate
-#     (overall bibliographic source) AND create one candidate per data item,
-#     where candidate['data'] is replaced by a single dict for that data source.
-#     """
-#     expanded: List[Dict[str, Any]] = []
-#     for c in cands or []:
-#         data_field = c.get("data")
-#         if isinstance(data_field, list) and data_field:
-#             # Keep the overall bibliographic candidate as-is
-#             expanded.append({**c, "priority": _priority_for(c)})
-#             # Add one candidate per data item
-#             for d in data_field:
-#                 one = {**c, "data": d}  # overwrite with single datum
-#                 one["priority"] = _priority_for(one)
-#                 expanded.append(one)
-#         else:
-#             c = {**c, "priority": _priority_for(c)}
-#             expanded.append(c)
-#     return expanded
-
 def _put_s3_json(bucket: str, key: str, payload: Dict[str, Any]) -> None:
     s3.put_object(
         Bucket=bucket,
@@ -119,108 +59,6 @@ def _put_s3_json(bucket: str, key: str, payload: Dict[str, Any]) -> None:
         Body=json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8"),
         ContentType="application/json",
     )
-
-# def _enqueue_snapshot(nova_id: str, bibcode: str, bibstem: str, doctype: str,
-#                       entry_date: Optional[str], ads_snapshot_key: Optional[str],
-#                       priority: int, reason: str,
-#                       data: Optional[List[Any]] = None,
-#                       open_access_url: Optional[str] = None,
-#                       oa_reason: Optional[str] = None) -> Dict[str, Any]:
-#     """
-#     Upsert into ADS_QUEUE_TABLE priority queue.
-#     Keys:
-#       PK = SNAP#<fingerprint>
-#       SK = NOVA#<nova_id>#BIB#<bibcode>
-#     GSIs:
-#       gsi1_pk = STATUS#<status>
-#       gsi1_sk = {priority:03d}|{entry_date}|{PK}
-#       gsi2_pk = NOVA#<nova_id>
-#       gsi2_sk = {status}|{priority:03d}|{updated_at}
-#     """
-#     if not queue_table:
-#         return {"enqueued": False, "reason": "ADS_QUEUE_TABLE not configured"}
-
-#     fp = _fingerprint(nova_id or "unknown", bibcode or "unknown")
-#     pk = f"SNAP#{fp}"
-#     sk = f"NOVA#{nova_id or 'UNKNOWN'}#BIB#{bibcode or 'UNKNOWN'}"
-
-#     status = "READY"
-#     created_at = _now_iso()
-#     updated_at = created_at
-#     attempts = 0
-#     lease_expires_at = 0
-#     entry_day = (entry_date or "")[:10] or "0000-00-00"
-
-#     item = {
-#         "pk": pk,
-#         "sk": sk,
-#         "status": status,
-#         "priority": int(priority),
-#         "ads_snapshot_key": ads_snapshot_key,   # store just the key; bucket is known at runtime
-#         "eligibility_rule_version": ELIGIBILITY_RULE_VERSION,
-#         "reason": reason,
-#         "bibcode": bibcode,
-#         "nova_id": nova_id,
-#         "bibstem": bibstem,
-#         "doctype": doctype,
-#         "entry_date": entry_date,
-#         "open_access_url": open_access_url,     # <-- NEW
-#         "oa_reason": oa_reason,                 # <-- NEW
-#         "has_data": bool(data),
-#         "data": data,
-#         "attempts": attempts,
-#         "lease_expires_at": lease_expires_at,
-#         "created_at": created_at,
-#         "updated_at": updated_at,
-#         # optional query keys for a priority view (if you’re using them):
-#         "gsi1_pk": f"STATUS#{status}",
-#         "gsi1_sk": f"{priority:03d}|{(entry_date or '')[:10] or '0000-00-00'}|{pk}",
-#         "gsi2_pk": f"NOVA#{nova_id or 'UNKNOWN'}",
-#         "gsi2_sk": f"{status}|{priority:03d}|{updated_at}",
-#     }
-#     # strip None (DynamoDB can’t store None)
-#     item = {k: v for k, v in item.items() if v is not None}
-
-#     try:
-#         queue_table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
-#         return {"enqueued": True, "created": True, "pk": pk, "sk": sk, "priority": priority}
-#     except ClientError as e:
-#         if e.response["Error"]["Code"] != "ConditionalCheckFailedException":
-#             raise
-#         # update existing to (a) lower priority if better, and (b) refresh OA fields / pointer
-#         try:
-#             queue_table.update_item(
-#                 Key={"pk": pk, "sk": sk},
-#                 UpdateExpression=(
-#                     "SET #p = :new_prio, "
-#                     "updated_at = :t, ads_snapshot_key = :k, reason = :r, gsi1_sk = :g1"
-#                 ),
-#                 ConditionExpression="attribute_not_exists(#p) OR #p > :new_prio",
-#                 ExpressionAttributeNames={"#p": "priority"},
-#                 ExpressionAttributeValues={
-#                     ":new_prio": int(priority),
-#                     ":t": _now_iso(),
-#                     ":k": ads_snapshot_key,
-#                     ":r": reason,
-#                     ":g1": f"{priority:03d}|{(entry_date or '')[:10] or '0000-00-00'}|{pk}",
-#                 },
-#                 ReturnValues="UPDATED_NEW",
-#             )
-#         except ClientError as e:
-#             if e.response["Error"]["Code"] != "ConditionalCheckFailedException":
-#                 raise
-#         # 2) Always refresh OA fields & pointer (NOTE: do NOT touch priority here)
-#         queue_table.update_item(
-#             Key={"pk": pk, "sk": sk},
-#             UpdateExpression="SET open_access_url=:o, oa_reason=:or, ads_snapshot_key=:k, updated_at=:t",
-#             ExpressionAttributeValues={
-#                 ":o": (open_access_url or ""),
-#                 ":or": (oa_reason or ""),
-#                 ":k": ads_snapshot_key,
-#                 ":t": _now_iso(),
-#             },
-#         )
-#         return {"enqueued": True, "created": False, "pk": pk, "sk": sk, "priority": priority, "updated_priority": True}
 
 
 def _upsert_candidates_ddb(table: str, candidates: List[Dict[str, Any]]) -> int:
@@ -233,20 +71,8 @@ def _upsert_candidates_ddb(table: str, candidates: List[Dict[str, Any]]) -> int:
     for c in candidates:
         new_candidate = merge_updates(c,{"status": "queued", "updated_at": _utc_now()})
         item = {**new_candidate.model_dump(mode="json")}
-        # Ensure candidate_id exists and is part of the key
-        # new_candidate = 
-        # c["status"] = "queued"
-        # c.setdefault("status", "queued")
-        # cid = item.get("candidate_id")
-        # item["candidate_id"] = cid
-        # Upsert (PutItem overwrites same key)
-        item = {k: v for k, v in item.items() if v is not None}
         try:
             queue_table.put_item(Item=_to_dynamo(item))
-            # ddb.put_item(
-            #     TableName=table,
-            #     Item=_to_dynamo(item),
-            # )
             new_candidates.append(new_candidate)
             count += 1
         except Exception as e:

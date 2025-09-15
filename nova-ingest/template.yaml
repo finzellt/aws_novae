@@ -30,10 +30,6 @@ Parameters:
     Type: String
     Default: ADSQueryToken
     Description: Name of the Secrets Manager secret holding the ADS token
-  # ADSQueueTableName:
-  #   Type: String
-  #   Default: nova-ingest-ads-queue
-  #   Description: Existing DynamoDB table name for ADS snapshot queue
   HarvestQueueTable:
     Type: String
     Default: nova-ingest-harvest-queue
@@ -76,24 +72,6 @@ Resources:
       DockerBuildArgs:
         HANDLER_PATH: src/resolve_simbad_metadata/app.py   # for resolver
 
-  # ValidateNovaAndCoordsFunction:
-  #   Type: AWS::Serverless::Function
-  #   Properties:
-  #     FunctionName: nova-ingest-validate-nova-and-coords
-  #     PackageType: Image         # or Zip if you prefer
-  #     # If you’re reusing the same image as the resolver, you can just point to the same ECR ImageUri
-  #     # ImageUri: <your ECR image URI with astropy>
-  #     Description: Validate that the candidate is a nova and has valid coords.
-  #     # Architectures: x86_64  # or arm64, matching your image
-  #     Policies:
-  #       - AWSLambdaBasicExecutionRole
-  #   Metadata:
-  #     Dockerfile: Dockerfile
-  #     DockerContext: .
-  #     DockerTag: validator
-  #     DockerBuildArgs:
-  #       HANDLER_PATH: src/validate_nova_and_coords/app.py   # for validator
-
   DetermineHostGalaxyFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -101,9 +79,6 @@ Resources:
       PackageType: Image
       Timeout: 10
       MemorySize: 512
-      # (If you set Architectures in Globals, this inherits it. Otherwise you can add:
-      # Architectures: [ arm64 ]   # or [ x86_64 ] — must match your base image
-      #)
       Environment:
         Variables:
           GALAXY_LIST_URI: !Ref GalaxyListUri
@@ -118,7 +93,6 @@ Resources:
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: .
-      # DockerContext: src/determine_host_galaxy
       DockerTag: host-galaxy
       DockerBuildArgs:
         HANDLER_PATH: src/determine_host_galaxy/app.py   # for host galaxy
@@ -149,7 +123,6 @@ Resources:
             Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ADSSecretName}*"
     Metadata:
       Dockerfile: Dockerfile
-      # DockerContext: src/query_ads_bibcodes
       DockerContext: .
       DockerTag: ads-query
       DockerBuildArgs:
@@ -164,25 +137,8 @@ Resources:
       MemorySize: 512
       Environment:
         Variables:
-          # STAGING_BUCKET: nova-data-bucket-finzell
           HARVEST_QUEUE_TABLE: !Ref HarvestQueueTable
           NOVA_DATA_BUCKET: nova-data-bucket-finzell
-          # STAGING_PREFIX: staging/metadata
-          # ADS_STAGING_PREFIX: staging/ads
-          # WRITE_LATEST: "true"
-          # DROP_ADS_FROM_PAYLOAD: "true"
-          # ADS_SNAPSHOT_MODE: slim   # write slim snapshot for next machine
-          # --- New for eligibility/priority ---
-          # TOP_DOCTYPES: "circular,catalog,dataset"
-          # BIG_JOURNAL_BIBSTEMS: "mnras,aj,apj,a&a,pasp"
-          # EXCLUDED_DOCTYPES: "proposal,book,bookreview,editorial,inbook,obituary,inproceedings,phdthesis,talk,software"
-          # PRIORITY_P0: "10"
-          # PRIORITY_P1: "50"
-          # PRIORITY_P2: "90"
-          # PRIORITY_RECENCY_MAX_BONUS: "5"
-          # PRIORITY_RECENCY_WINDOW_DAYS: "365"
-          # ELIGIBILITY_RULE_VERSION: "2025-09-07"
-          # ADS_QUEUE_TABLE: !Ref ADSQueueTableName
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3WritePolicy:
@@ -225,7 +181,6 @@ Resources:
       DefinitionUri: statemachines/nova_ingest.asl.json
       DefinitionSubstitutions:
         ResolveSimbadArn: !GetAtt ResolveSimbadMetadataFunction.Arn
-        # ValidateArn: !GetAtt ValidateNovaAndCoordsFunction.Arn
         DetermineHostArn: !GetAtt DetermineHostGalaxyFunction.Arn       # NEW
         QueryAdsArn: !GetAtt QueryADSBibcodesFunction.Arn
         StageWriteArn: !GetAtt StageWriteMetadataFunction.Arn
@@ -241,8 +196,6 @@ Resources:
         # Allows the state machine to invoke your two Lambdas
         - LambdaInvokePolicy:
             FunctionName: !Ref ResolveSimbadMetadataFunction
-        # - LambdaInvokePolicy:
-        #     FunctionName: !Ref ValidateNovaAndCoordsFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref DetermineHostGalaxyFunction   # <-- add this
         - LambdaInvokePolicy:
@@ -261,54 +214,6 @@ Resources:
               - logs:DescribeResourcePolicies
               - logs:DescribeLogGroups
             Resource: "*"
-      # Definition:
-      #   Comment: "Three-step nova ingest (resolver -> validator -> host galaxy)"
-      #   StartAt: ResolveSimbad
-      #   States:
-      #     ResolveSimbad:
-      #       Type: Task
-      #       Resource: arn:aws:states:::lambda:invoke
-      #       Parameters:
-      #         FunctionName: !GetAtt ResolveSimbadMetadataFunction.Arn
-      #         Payload.$: $
-      #       ResultPath: $.resolver
-      #       Next: CheckFound
-      #       Retry:
-      #         - ErrorEquals: ["States.ALL"]
-      #           IntervalSeconds: 2
-      #           BackoffRate: 2.0
-      #           MaxAttempts: 3
-
-      #     CheckFound:
-      #       Type: Choice
-      #       Choices:
-      #         - Variable: $.resolver.Payload.status
-      #           StringEquals: NOT_FOUND
-      #           Next: DoneNoop
-      #       Default: Validate
-
-      #     Validate:
-      #       Type: Task
-      #       Resource: arn:aws:states:::lambda:invoke
-      #       Parameters:
-      #         FunctionName: !GetAtt ValidateNovaAndCoordsFunction.Arn
-      #         Payload.$: $.resolver.Payload
-      #       # Strip the Lambda wrapper so the next state gets only the JSON payload
-      #       OutputPath: $.Payload
-      #       Next: DetermineHostGalaxy
-
-      #     DetermineHostGalaxy:
-      #       Type: Task
-      #       Resource: arn:aws:states:::lambda:invoke
-      #       Parameters:
-      #         FunctionName: !GetAtt DetermineHostGalaxyFunction.Arn
-      #         Payload.$: $                # receives the payload from Validate (already unwrapped)
-      #       # Make the state machine's final output be JUST the Lambda payload
-      #       OutputPath: $.Payload
-      #       End: true
-
-      #     DoneNoop:
-      #       Type: Succeed
 
   # Log group for the state machine
   NovaIngestLogs:
@@ -326,6 +231,3 @@ Outputs:
   DetermineHostGalaxyArn:
     Description: DetermineHostGalaxy Lambda ARN
     Value: !GetAtt DetermineHostGalaxyFunction.Arn
-  # ResolveSimbadImageUri:
-  #   Description: ECR image URI used by the Lambda
-  #   Value: !GetAtt ResolveSimbadMetadataFunction.ImageUri
