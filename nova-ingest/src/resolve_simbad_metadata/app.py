@@ -90,9 +90,7 @@ import json, logging, math, numpy as np
 
 logger = logging.getLogger(__name__)
 _EXPLICIT_NOVA_ALIASES = ["No?", "No*"]
-# _EXPLICIT_NOVA_ALIASES = {
-#     "No?", "No*"
-# }
+
 def is_nova(otypes: list[str]) -> bool:
     """Check if any of the object types match the explicit NOVA aliases."""
     # return any(otype in _EXPLICIT_NOVA_ALIASES for otype in otypes)
@@ -134,28 +132,4 @@ def handler(event, ctx):
 
     mapped = from_simbad(raw)
     nova = Nova(**mapped)
-    # if not is_nova(nova.obj_types):
-    #     logger.warning(f"Candidate {name} found in SIMBAD but not a nova: OTYPES={nova.obj_types}")
-    #     return {"status": "NOT_A_NOVA", "candidate_name": name}
-    # nova = Nova(**{
-    #     **mapped,
-    #     # "ingest_run_id": event.get("ingest_run_id"),
-    # })
     return {"status": "OK", "canonical": nova.model_dump(mode="json")}
-
-# def handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
-#     """
-#     AWS Lambda entrypoint.
-#     Event example: {"candidate_name": "V606 Aql"}
-#     """
-#     try:
-#         candidate_name = event.get("candidate_name")
-#         return resolve_simbad(candidate_name)
-#     except ValueError as ve:
-#         # Bad input: let it surface as a 4xx-style failure (no retry)
-#         logger.exception("Bad input")
-#         return {"status": "BAD_REQUEST", "error": f"1 {str(ve)}"}
-#     except Exception as e:
-#         # System/transient errors should throw to enable SFN retries
-#         logger.exception("Unhandled exception in resolve_simbad_metadata")
-#         raise
