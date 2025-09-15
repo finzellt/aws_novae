@@ -1,0 +1,24 @@
+Added to PYTHONPATH: /Users/tfinzell/Git/aws_novae/nova-ingest/shared
+['V1324 Sco', 'NOVA Sco 2012', 'MOA  2012-BLG-320', 'V* V1324 Sco', 'Gaia DR2 4043499439062100096', 'Gaia DR3 4043499439062100096']
+	 Candidate hex_representation: 2025-09-14T13:45:48.253074Z, Candidate Doctype: circular, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.253232Z, Candidate Doctype: article, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.253323Z, Candidate Doctype: circular, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.253410Z, Candidate Doctype: circular, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.253494Z, Candidate Doctype: data, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.253573Z, Candidate Doctype: article, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.253650Z, Candidate Doctype: eprint, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.253728Z, Candidate Doctype: article, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.253821Z, Candidate Doctype: article, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.253898Z, Candidate Doctype: article, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.253976Z, Candidate Doctype: data, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254052Z, Candidate Doctype: phdthesis, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254126Z, Candidate Doctype: article, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254204Z, Candidate Doctype: data, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254278Z, Candidate Doctype: data, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254353Z, Candidate Doctype: article, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254427Z, Candidate Doctype: dataset, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254501Z, Candidate Doctype: data, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254576Z, Candidate Doctype: erratum, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254825Z, Candidate Doctype: phdthesis, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254901Z, Candidate Doctype: phdthesis, Candidate status: queued
+	 Candidate hex_representation: 2025-09-14T13:45:48.254974Z, Candidate Doctype: article, Candidate status: queued

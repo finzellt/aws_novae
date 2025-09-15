@@ -51,7 +51,8 @@ import logging
 import os
 import re
 from typing import Any, Dict, List, Optional,Iterable
-from nova_schema.models import Nova  # your Pydantic model with validators
+from nova_schema.nova import Nova
+from nova_schema.mapping.nova_mapping import from_simbad
 
 # import astropy
 # import astroquery
@@ -73,7 +74,7 @@ try:
 except Exception:
     pass
 # Degrees for easy downstream math
-_simbad.add_votable_fields("ra(d)", "dec(d)", "otypes")
+_simbad.add_votable_fields("ra(d)", "dec(d)", "otypes", "ids")
 # Tweak row limit just in case; query_object returns a single best match.
 _simbad.ROW_LIMIT = 1
 
@@ -88,226 +89,73 @@ from pydantic import ValidationError
 import json, logging, math, numpy as np
 
 logger = logging.getLogger(__name__)
+_EXPLICIT_NOVA_ALIASES = ["No?", "No*"]
+# _EXPLICIT_NOVA_ALIASES = {
+#     "No?", "No*"
+# }
+def is_nova(otypes: list[str]) -> bool:
+    """Check if any of the object types match the explicit NOVA aliases."""
+    # return any(otype in _EXPLICIT_NOVA_ALIASES for otype in otypes)
+    return any(nova_alias in otypes for nova_alias in _EXPLICIT_NOVA_ALIASES)
 
-_EXPLICIT_NOVA_ALIASES = {
-    "No?", "No*"
-}
-
-def _is_nova(object_types: Optional[Iterable[str]]) -> bool:
-    if not object_types:
-        return False
-    for raw in object_types:
-        t = (raw or "").strip()
-        if not t:
-            continue
-        if t in _EXPLICIT_NOVA_ALIASES:
-            return True
-    return False
-
-# def to_canonical_or_die(data: dict) -> dict:
-#     try:
-#         nova = Nova(**data)  # your Pydantic model
-#         return nova.model_dump(mode="json")
-#     except ValidationError as e:
-#         # Helpful, compact diagnostics
-#         logger.error("Nova validation failed (%d error[s])", len(e.errors()))
-#         for err in e.errors():
-#             loc = ".".join(str(p) for p in err.get("loc", []))
-#             msg = err.get("msg", "")
-#             typ = err.get("type", "")
-#             bad = err.get("input", None)
-#             # Truncate long values for logs
-#             bad_preview = bad if isinstance(bad, (int, float, type(None))) else repr(bad)[:500]
-#             logger.error("  field=%s type=%s msg=%s input=%s", loc, typ, msg, bad_preview)
-#         # Extra context: which keys you sent, and value types
-#         try:
-#             types = {k: type(v).__name__ for k, v in data.items()}
-#             logger.error("Payload keys: %s", sorted(data.keys()))
-#             logger.error("Payload types: %s", types)
-#             logger.error("Payload JSON (truncated): %s", json.dumps(data, default=str)[:2000])
-#         except Exception:
-#             pass
-#         raise
-
-
-
-def normalize_name(s: str) -> str:
-    """Lowercase alnum-only for idempotent keys (e.g., DynamoDB/S3 markers)."""
-    return re.sub(r"[^A-Za-z0-9]+", "", s).lower()
-
-
-def _table_cell(row: Any, name: str) -> Optional[str]:
-    # Safely extract a string cell from an Astropy row, handling masked values.
-    if name not in row.colnames:
+def fetch_simbad_object(name: str) -> dict | None:
+    """Pure fetch: return raw column values (strings/numbers) or None if not found."""
+    tbl: Table | None = _simbad.query_object(name)
+    if not tbl or len(tbl) == 0:
         return None
-    val = row[name]
-    if hasattr(val, "mask") and getattr(val, "mask", False):
-        return None
-    v = str(val).strip()
-    return v if v and v.lower() != "nan" else None
-
-
-def _split_pipe_list(value: Optional[str]) -> List[str]:
-    """
-    SIMBAD packs certain VOTable fields (e.g., IDS, BIBCODELIST) as a single
-    pipe-delimited string. Split, strip, and deduplicate while preserving order.
-    """
-    if not value:
-        return []
-    parts = [p.strip() for p in value.split("|") if p.strip()]
-    # Deduplicate while preserving order
-    seen = set()
-    uniq = []
-    for p in parts:
-        if p not in seen:
-            seen.add(p)
-            uniq.append(p)
-    return uniq
-
-
-def resolve_simbad(candidate_name: str) -> Dict[str, Any]:
-    """Core resolver logic (pure function; easy to unit test)."""
-    name = (candidate_name or "").strip()
-    if not name:
-        raise ValueError("candidate_name is required")
-
-    logger.info("Querying SIMBAD: %s", name)
-    tbl: Optional[Table] = _simbad.query_object(name)
-
-    if tbl is None or len(tbl) == 0:
-        logger.info("SIMBAD not found: %s", name)
-        return {"status": "NOT_FOUND", "candidate_name": name}
-
     row = tbl[0]
-
-    main_id = _table_cell(row, "MAIN_ID") or name
-    if main_id.startswith("V* "):
-        main_id = main_id[3:]
-    # logger.warning(f"SIMBAD row: {row}")
-    # logger.warning(f"Atropy version: {astropy.__version__}")
-    # logger.warning(f"Astroquery version: {astroquery.__version__}")
-    ra_s = _table_cell(row, "RA_d")
-    dec_s = _table_cell(row, "DEC_d")
-    if ra_s is None or dec_s is None:
-        # Treat as transient/system failure so Step Functions retries
-        raise RuntimeError("SIMBAD returned row without RA/Dec in degrees")
-
-    try:
-        ra_deg = float(ra_s)
-        dec_deg = float(dec_s)
-    except Exception as e:
-        raise RuntimeError(f"Invalid RA/Dec values from SIMBAD: {ra_s}, {dec_s}") from e
-
-    otypes = _table_cell(row, "OTYPES")
-    object_types: List[str] = _split_pipe_list(otypes) if otypes else []
-    
-    if not _is_nova(object_types):
-        return {"status": "NOT_NOVA", "reason": f"Object types do not indicate a nova: {obj_types}"}
-
-
-    # Get aliases (second call)
-    ids_tbl: Optional[Table] = _simbad.query_objectids(name)
-
-    raw_ids: List[str] = []
-    if ids_tbl is not None and "ID" in ids_tbl.colnames:
-        for rec in ids_tbl:
-            v = str(rec["ID"]).strip()
-            if v:
-                raw_ids.append(v)
-
-    # Dedup & prefer main_id first, then all other aliases, then original input
-    aliases: List[str] = []
-    seen = set()
-
-    def add_alias(a: Optional[str]):
-        if not a:
-            return
-        a_norm = " ".join(a.split())
-        if a_norm and a_norm not in seen:
-            aliases.append(a_norm)
-            seen.add(a_norm)
-
-    add_alias(main_id)
-    for a in raw_ids:
-        add_alias(a)
-    add_alias(name)
-
-    # result: Dict[str, Any] = {
-    #     "status": "OK",
-    #     "candidate_name": name,
-    #     "preferred_name": main_id,
-    #     "name_norm": normalize_name(main_id),
-    #     "coords": {"ra_deg": ra_deg, "dec_deg": dec_deg},
-    #     "object_types": object_types,
-    #     "aliases": aliases,
-    #     "simbad": {"main_id": main_id, "raw_ids": raw_ids},
-    # }
-    # return result
-    c_icrs = SkyCoord(float(ra_deg) * u.deg, float(dec_deg) * u.deg, frame="icrs")
-    const_short = get_constellation(c_icrs, short_name=True)
-
-
-    # mapped_dict = {"nova_id":hash(main_id) & 0x7FFF_FFFF,  "primary_name":main_id,
-    # "name_norm":normalize_name(main_id),
-    # "ra_angle":ra_deg,
-    # "dec_angle":dec_deg,
-    # "obj_types":object_types or None,
-    # "aliases":aliases or None,
-    # "gal_coords_l":float(c_icrs.galactic.l.wrap_at(360 * u.deg).deg),
-    # "gal_coords_b":float(c_icrs.galactic.b.deg),
-    # "ingest_source":"simbad",
-    # "constellation":const_short,
-    # }
-    # canonical = to_canonical_or_die(mapped_dict)
-    try:
-        nova = Nova(
-            nova_id=hash(main_id) & 0x7FFF_FFFF,             # you’ll likely replace with your real nova_id
-            primary_name=main_id,
-            name_norm=normalize_name(main_id),
-            ra_angle=ra_deg,
-            dec_angle=dec_deg,
-            gal_coords_l = float(c_icrs.galactic.l.wrap_at(360 * u.deg).deg),
-            gal_coords_b=float(c_icrs.galactic.b.deg),
-            constellation=const_short,
-            obj_types=object_types or None,
-            aliases=aliases or None,
-            ingest_source="simbad",
-            # ingest_run_id=ingest_run_id or datetime.now(timezone.utc).isoformat(),
-        )
-        canonical = nova.model_dump(mode="json")
-    except Exception as e:
-        logger.warning(f"THERE WAS AN ISSUE WITH CREATING THE NOVA OBJECT, which was: {e}.")
-        canonical = None
-        
+    # Minimal extraction: don't normalize; just make Python scalars
+    def raw(col):
+        v = row[col]
+        try:
+            # handle masked values
+            if getattr(v, "mask", False):
+                return None
+        except Exception:
+            pass
+        return v.item() if hasattr(v, "item") else (str(v) if v is not None else None)
 
     return {
-        "status": "OK",
-        "candidate_name": name,
-        "preferred_name": main_id,
-        "name_norm": canonical.get("name_norm"),
-        "coords": {"ra_deg": ra_deg, "dec_deg": dec_deg},
-        "object_types": object_types,
-        "aliases": aliases,
-        "simbad": {"main_id": main_id, "raw_ids": aliases},  # keep legacy shape if you had it
-        "canonical": canonical,
-        # "ingest_run_id": canonical.get("ingest_run_id"),
+        "MAIN_ID": raw("MAIN_ID"),
+        "RA_d": raw("RA_d"),
+        "DEC_d": raw("DEC_d"),
+        "OTYPES": raw("OTYPES"),
+        "IDS": raw("IDS"),  # pipe-separated identifiers, if provided
     }
 
+def handler(event, ctx):
+    name = event["candidate_name"]
+    raw = fetch_simbad_object(name)
+    if not raw:
+        return {"status": "NOT_FOUND", "candidate_name": name}
+    if not is_nova(raw["OTYPES"]):
+        logger.warning(f"Candidate {name} found in SIMBAD but not a nova: OTYPES={raw['OTYPES']}")
+        return {"status": "NOT_A_NOVA", "candidate_name": name}
 
+    mapped = from_simbad(raw)
+    nova = Nova(**mapped)
+    # if not is_nova(nova.obj_types):
+    #     logger.warning(f"Candidate {name} found in SIMBAD but not a nova: OTYPES={nova.obj_types}")
+    #     return {"status": "NOT_A_NOVA", "candidate_name": name}
+    # nova = Nova(**{
+    #     **mapped,
+    #     # "ingest_run_id": event.get("ingest_run_id"),
+    # })
+    return {"status": "OK", "canonical": nova.model_dump(mode="json")}
 
-def handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
-    """
-    AWS Lambda entrypoint.
-    Event example: {"candidate_name": "V606 Aql"}
-    """
-    try:
-        candidate_name = event.get("candidate_name")
-        return resolve_simbad(candidate_name)
-    except ValueError as ve:
-        # Bad input: let it surface as a 4xx-style failure (no retry)
-        logger.exception("Bad input")
-        return {"status": "BAD_REQUEST", "error": f"1 {str(ve)}"}
-    except Exception as e:
-        # System/transient errors should throw to enable SFN retries
-        logger.exception("Unhandled exception in resolve_simbad_metadata")
-        raise
+# def handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
+#     """
+#     AWS Lambda entrypoint.
+#     Event example: {"candidate_name": "V606 Aql"}
+#     """
+#     try:
+#         candidate_name = event.get("candidate_name")
+#         return resolve_simbad(candidate_name)
+#     except ValueError as ve:
+#         # Bad input: let it surface as a 4xx-style failure (no retry)
+#         logger.exception("Bad input")
+#         return {"status": "BAD_REQUEST", "error": f"1 {str(ve)}"}
+#     except Exception as e:
+#         # System/transient errors should throw to enable SFN retries
+#         logger.exception("Unhandled exception in resolve_simbad_metadata")
+#         raise

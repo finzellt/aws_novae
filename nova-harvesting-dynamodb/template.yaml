@@ -1,9 +1,9 @@
 #Dynamo DB Template
 Resources:
-  ADSSnapshotQueueTable:
+  HarvestQueueTable:
     Type: AWS::DynamoDB::Table
     Properties:
-      TableName: nova-ingest-ads-queue
+      TableName: nova-ingest-harvest-queue
       BillingMode: PAY_PER_REQUEST
       TableClass: STANDARD
       AttributeDefinitions:
@@ -33,7 +33,7 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: INCLUDE
-            NonKeyAttributes: [pk, sk, ads_snapshot_uri, nova_id, bibcode, open_access_url, oa_reason, has_data, data]
+            NonKeyAttributes: [pk, sk, author_count, nova_id, bibcode, open_access_url, oa_reason, data]
         - IndexName: GSI2
           KeySchema:
             - AttributeName: gsi2_pk
@@ -42,4 +42,4 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: INCLUDE
-            NonKeyAttributes: [pk, sk, status, priority, updated_at, open_access_url, oa_reason, has_data, data]
+            NonKeyAttributes: [pk, sk, status, priority, updated_at]

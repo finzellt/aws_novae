@@ -30,10 +30,14 @@ Parameters:
     Type: String
     Default: ADSQueryToken
     Description: Name of the Secrets Manager secret holding the ADS token
-  ADSQueueTableName:
+  # ADSQueueTableName:
+  #   Type: String
+  #   Default: nova-ingest-ads-queue
+  #   Description: Existing DynamoDB table name for ADS snapshot queue
+  HarvestQueueTable:
     Type: String
-    Default: nova-ingest-ads-queue
-    Description: Existing DynamoDB table name for ADS snapshot queue
+    Default: nova-ingest-harvest-queue
+    Description: Existing DynamoDB table name for harvest queue
 
 Globals:
   Function:
@@ -160,23 +164,25 @@ Resources:
       MemorySize: 512
       Environment:
         Variables:
-          STAGING_BUCKET: nova-data-bucket-finzell
-          STAGING_PREFIX: staging/metadata
-          ADS_STAGING_PREFIX: staging/ads
-          WRITE_LATEST: "true"
-          DROP_ADS_FROM_PAYLOAD: "true"
-          ADS_SNAPSHOT_MODE: slim   # write slim snapshot for next machine
+          # STAGING_BUCKET: nova-data-bucket-finzell
+          HARVEST_QUEUE_TABLE: !Ref HarvestQueueTable
+          NOVA_DATA_BUCKET: nova-data-bucket-finzell
+          # STAGING_PREFIX: staging/metadata
+          # ADS_STAGING_PREFIX: staging/ads
+          # WRITE_LATEST: "true"
+          # DROP_ADS_FROM_PAYLOAD: "true"
+          # ADS_SNAPSHOT_MODE: slim   # write slim snapshot for next machine
           # --- New for eligibility/priority ---
-          TOP_DOCTYPES: "circular,catalog,dataset"
-          BIG_JOURNAL_BIBSTEMS: "mnras,aj,apj,a&a,pasp"
-          EXCLUDED_DOCTYPES: "proposal,book,bookreview,editorial,inbook,obituary,inproceedings,phdthesis,talk,software"
-          PRIORITY_P0: "10"
-          PRIORITY_P1: "50"
-          PRIORITY_P2: "90"
-          PRIORITY_RECENCY_MAX_BONUS: "5"
-          PRIORITY_RECENCY_WINDOW_DAYS: "365"
-          ELIGIBILITY_RULE_VERSION: "2025-09-07"
-          ADS_QUEUE_TABLE: !Ref ADSQueueTableName
+          # TOP_DOCTYPES: "circular,catalog,dataset"
+          # BIG_JOURNAL_BIBSTEMS: "mnras,aj,apj,a&a,pasp"
+          # EXCLUDED_DOCTYPES: "proposal,book,bookreview,editorial,inbook,obituary,inproceedings,phdthesis,talk,software"
+          # PRIORITY_P0: "10"
+          # PRIORITY_P1: "50"
+          # PRIORITY_P2: "90"
+          # PRIORITY_RECENCY_MAX_BONUS: "5"
+          # PRIORITY_RECENCY_WINDOW_DAYS: "365"
+          # ELIGIBILITY_RULE_VERSION: "2025-09-07"
+          # ADS_QUEUE_TABLE: !Ref ADSQueueTableName
       Policies:
         - AWSLambdaBasicExecutionRole
         - S3WritePolicy:
@@ -191,8 +197,8 @@ Resources:
               - dynamodb:UpdateItem
               - dynamodb:GetItem
             Resource:
-              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ADSQueueTableName}"
-              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${ADSQueueTableName}/index/*"
+              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${HarvestQueueTable}"
+              - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${HarvestQueueTable}/index/*"
     Metadata:
       Dockerfile: Dockerfile
       DockerContext: .

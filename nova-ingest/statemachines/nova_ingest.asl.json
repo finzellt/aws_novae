@@ -1,46 +1,70 @@
 {
-  "Comment": "Nova ingest: resolver -> validate -> determine host galaxy",
-  "StartAt": "ResolveSimbad",
-  "States": {
-    "ResolveSimbad": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": { "FunctionName": "${ResolveSimbadArn}", "Payload.$": "$" },
-      "ResultPath": "$.resolver",
-      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 2, "BackoffRate": 2.0, "MaxAttempts": 3 }],
-      "Next": "CheckFound"
-    },
-    "CheckFound": {
-      "Type": "Choice",
-      "Choices": [
-        { "Variable": "$.resolver.Payload.status", "StringEquals": "NOT_FOUND", "Next": "DoneNoop" }
-      ],
-      "Default": "DetermineHost"
-    },
-    "DetermineHost": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": { "FunctionName": "${DetermineHostArn}", "Payload.$": "$.resolver.Payload" },
-      "OutputPath": "$.Payload",
-      "Next": "QueryADSBibcodes"
-    },
-    "QueryADSBibcodes": {
-      "Type": "Task",
-      "Resource": "arn:aws:states:::lambda:invoke",
-      "Parameters": {
-        "FunctionName": "${QueryAdsArn}",
-        "Payload.$": "$"
-      },
-      "OutputPath": "$.Payload",
-      "Next": "StageWriteMetadata"
-      },
-      "StageWriteMetadata": {
-        "Type": "Task",
-        "Resource": "arn:aws:states:::lambda:invoke",
-        "Parameters": { "FunctionName": "${StageWriteArn}", "Payload.$": "$" },
-        "OutputPath": "$.Payload",
-        "End": true
-      },
-"DoneNoop": { "Type": "Succeed" }
-}
+    "Comment": "Nova ingest: resolver -> validate -> determine host galaxy",
+    "StartAt": "ResolveSimbad",
+    "States": {
+        "ResolveSimbad": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "${ResolveSimbadArn}",
+                "Payload.$": "$"
+            },
+            "ResultPath": "$.resolver",
+            "Retry": [
+                {
+                    "ErrorEquals": [
+                        "States.ALL"
+                    ],
+                    "IntervalSeconds": 2,
+                    "BackoffRate": 2,
+                    "MaxAttempts": 3
+                }
+            ],
+            "Next": "CheckFound"
+        },
+        "CheckFound": {
+            "Type": "Choice",
+            "Choices": [
+                {
+                    "Variable": "$.resolver.Payload.status",
+                    "StringMatches": "NOT_FOUND|BAD_FORMAT",
+                    "Next": "DoneNoop"
+                }
+            ],
+            "Default": "DetermineHost"
+        },
+        "DetermineHost": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "${DetermineHostArn}",
+                "Payload.$": "$.resolver.Payload"
+            },
+            "OutputPath": "$.Payload",
+            "Next": "QueryADSBibcodes"
+        },
+        "QueryADSBibcodes": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "${QueryAdsArn}",
+                "Payload.$": "$"
+            },
+            "OutputPath": "$.Payload",
+            "Next": "StageWriteMetadata"
+        },
+        "StageWriteMetadata": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": {
+                "FunctionName": "${StageWriteArn}",
+                "Payload.$": "$"
+            },
+            "OutputPath": "$.Payload",
+            "End": true
+        },
+        "DoneNoop": {
+            "Type": "Succeed"
+        }
+    }
 }

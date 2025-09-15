@@ -1,0 +1,85 @@
+Traceback (most recent call last):
+  File "/Users/tfinzell/Git/aws_novae/testing/scratch/test_ads_query.py", line 17, in <module>
+    from nova_schema.mapping.ads_mapping import map_ads_response_to_harvest
+  File "/Users/tfinzell/Git/aws_novae/nova-ingest/shared/nova_schema/mapping/ads_mapping.py", line 5, in <module>
+    from nova_schema.biblio import BiblioSource
+  File "/Users/tfinzell/Git/aws_novae/nova-ingest/shared/nova_schema/biblio.py", line 88, in <module>
+    class BiblioSource(BaseModel):
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_model_construction.py", line 237, in __new__
+    complete_model_class(
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_model_construction.py", line 597, in complete_model_class
+    schema = gen_schema.generate_schema(cls)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 711, in generate_schema
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 1004, in _generate_schema_inner
+    return self._model_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 837, in _model_schema
+    {k: self._generate_md_field_schema(k, v, decorators) for k, v in fields.items()},
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 837, in <dictcomp>
+    {k: self._generate_md_field_schema(k, v, decorators) for k, v in fields.items()},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 1206, in _generate_md_field_schema
+    common_field = self._common_field_schema(name, field_info, decorators)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 1372, in _common_field_schema
+    schema = self._apply_annotations(
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 2297, in _apply_annotations
+    schema = get_inner_schema(source_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_schema_generation_shared.py", line 83, in __call__
+    schema = self._handler(source_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 2371, in new_handler
+    schema = annotation_get_schema(source, get_inner_schema)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/functional_validators.py", line 126, in __get_pydantic_core_schema__
+    schema = handler(source_type)
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_schema_generation_shared.py", line 83, in __call__
+    schema = self._handler(source_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 2371, in new_handler
+    schema = annotation_get_schema(source, get_inner_schema)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/functional_validators.py", line 126, in __get_pydantic_core_schema__
+    schema = handler(source_type)
+             ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_schema_generation_shared.py", line 83, in __call__
+    schema = self._handler(source_type)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 2279, in inner_handler
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 1009, in _generate_schema_inner
+    return self.match_type(obj)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 1123, in match_type
+    return self._match_generic_type(obj, origin)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 1146, in _match_generic_type
+    return self._union_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 1434, in _union_schema
+    choices.append(self.generate_schema(arg))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 711, in generate_schema
+    schema = self._generate_schema_inner(obj)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 1009, in _generate_schema_inner
+    return self.match_type(obj)
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 1127, in match_type
+    return self._unknown_type_schema(obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/tfinzell/anaconda3/lib/python3.11/site-packages/pydantic/_internal/_generate_schema.py", line 639, in _unknown_type_schema
+    raise PydanticSchemaGenerationError(
+pydantic.errors.PydanticSchemaGenerationError: Unable to generate pydantic-core schema for FieldInfo(annotation=NoneType, required=False, default=None, description="Publication date. Accepts 'YYYY', 'YYYY-MM', or 'YYYY-MM-DD'."). Set `arbitrary_types_allowed=True` in the model_config to ignore this error or implement `__get_pydantic_core_schema__` on your type to fully support it.
+
+If you got this error by calling handler(<some type>) within `__get_pydantic_core_schema__` then you likely need to call `handler.generate_schema(<some type>)` since we do not call `__get_pydantic_core_schema__` on `<some type>` otherwise to avoid infinite recursion.
+
+For further information visit https://errors.pydantic.dev/2.11/u/schema-for-unknown-type

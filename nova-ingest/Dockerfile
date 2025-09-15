@@ -9,15 +9,27 @@ COPY shared/nova_schema /opt/python/nova_schema
 ENV PYTHONPATH="/var/task:/opt/python"
 
 
-RUN python - <<'PY'
-import sys, importlib
-print("sys.path:", sys.path)
-m = importlib.import_module("nova_schema")
-print("nova_schema file:", getattr(m, "__file__", None))
-importlib.import_module("nova_schema.models")
-importlib.import_module("nova_schema.mapping")
-print("nova_schema imports OK")
-PY
+# RUN python - <<'PY'
+# import sys, importlib
+# print("sys.path:", sys.path)
+# m = importlib.import_module("nova_schema")
+# print("nova_schema file:", getattr(m, "__file__", None))
+# importlib.import_module("nova_schema.models")
+# importlib.import_module("nova_schema.mapping")
+# print("nova_schema imports OK")
+# PY
+# after (uses your new file layout)
+# RUN python - <<'PY'
+# import sys, importlib
+# print("sys.path:", sys.path)
+# m = importlib.import_module("nova_schema")
+# print("nova_schema file:", getattr(m, "__file__", None))
+# importlib.import_module("nova_schema.nova")
+# importlib.import_module("nova_schema.biblio")            # if present
+# importlib.import_module("nova_schema.mapping.nova_mapping")
+# # importlib.import_module("nova_schema.mapping.biblio_mapping")  # if present
+# print("nova_schema imports OK")
+# PY
 
 
 # ARG to choose which handler to copy

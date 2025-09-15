@@ -1,0 +1,42 @@
+{
+  "canonical": {
+    "nova_id": 17590665303119845000,
+    "primary_name": "V1324 Sco",
+    "name_norm": "v1324 sco",
+    "data_table_id": null,
+    "ra_angle": 267.72462243384,
+    "dec_angle": -32.62252526723,
+    "gal_coords_l": 357.4253915975445,
+    "gal_coords_b": -2.8723817915202927,
+    "host_gal": "MW",
+    "host_gal_confidence": null,
+    "first_observed": null,
+    "obs_year": null,
+    "constellation": "Sco",
+    "max_mag": null,
+    "max_mag_band": null,
+    "max_mag_date": null,
+    "max_mag_source": null,
+    "obj_types": [
+      "No*",
+      "CV*",
+      "V*",
+      "*"
+    ],
+    "bib_sources": null,
+    "ads_snap_uri": null,
+    "simbad_query": null,
+    "aliases": [
+      "V1324 Sco",
+      "NOVA Sco 2012",
+      "MOA  2012-BLG-320",
+      "V* V1324 Sco",
+      "Gaia DR2 4043499439062100096",
+      "Gaia DR3 4043499439062100096"
+    ],
+    "ingest_source": "simbad",
+    "ingest_run_id": null,
+    "created_at": "2025-09-12T19:41:34.179599Z",
+    "updated_at": "2025-09-12T19:41:34.179603Z"
+  }
+}

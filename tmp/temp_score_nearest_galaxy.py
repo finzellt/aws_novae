@@ -31,8 +31,8 @@ from nova_schema.mapping.nova_mapping import load_canonical, dump_canonical, mer
 from pydantic import ValidationError
 from nova_schema.nova import Nova  # your Pydantic model
 
-# logger = logging.getLogger(__name__)
-# logger.setLevel(logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # import boto3
 import os, boto3
@@ -68,8 +68,8 @@ GALAXY_LIST_URI = os.getenv(
     "GALAXY_LIST_URI",
     "s3://nova-data-bucket-finzell/reference/nearby_galaxies.csv",
 )
-CONFIRM_WITHIN_DEG = float(os.getenv("CONFIRM_WITHIN_DEG", "0.6"))     # name check gate
-PROBABLE_WITHIN_DEG = float(os.getenv("PROBABLE_WITHIN_DEG", "0.2"))   # positional strong match
+CONFIRM_WITHIN_DEG = float(os.getenv("CONFIRM_WITHIN_DEG", "1.0"))     # name check gate
+PROBABLE_WITHIN_DEG = float(os.getenv("PROBABLE_WITHIN_DEG", "0.25"))   # positional strong match
 
 _s3 = boto3.client("s3")
 _cached_galaxies: Optional[List[Tuple[str, float, float]]] = None  # (name, ra_deg, dec_deg)
@@ -116,21 +116,6 @@ def _load_galaxies() -> List[Tuple[str, float, float]]:
     return rows
 
 
-# def _normalize(s: str) -> str:
-#     return "".join((s or "").lower().split())
-
-# def _aliases_as_text(event: Dict[str, Any]) -> str:
-#     parts: List[str] = []
-#     for k in ("candidate_name", "preferred_name"):
-#         v = event.get(k)
-#         if isinstance(v, str):
-#             parts.append(v)
-#     aliases = event["aliases"] or []
-#     if isinstance(aliases, list):
-#         parts.extend([a for a in aliases if isinstance(a, str)])
-#     return " | ".join(parts)
-
-
 def _nearest_galaxy(ra_deg: float, dec_deg: float) -> Tuple[Tuple[str, float, float], float]:
     """Return ((name, ra, dec), separation_deg) for the nearest galaxy."""
     target = SkyCoord(ra_deg * u.deg, dec_deg * u.deg, frame="icrs")
@@ -162,8 +147,6 @@ def _get_nearest_galaxy_score(
       - method: "name_match" | "positional" | "none"
       - separation_deg: float
     """
-    CONFIRM_WITHIN_DEG = 0.3
-    PROBABLE_WITHIN_DEG = 0.6
 
     (gname, gra, gdec), sep_deg = _nearest_galaxy(ra_deg, dec_deg)
 
@@ -176,10 +159,6 @@ def _get_nearest_galaxy_score(
         host = gname
         confidence = 1
         # method = "name_match"
-    elif gnorm in ["m31","smc","lmc"] and sep_deg <= 8.0:
-        host = gname
-        confidence = 0.9
-        # method = "positional"
     elif sep_deg <= CONFIRM_WITHIN_DEG:
         host = gname
         confidence = 0.75
@@ -194,35 +173,6 @@ def _get_nearest_galaxy_score(
         # method = "none"
 
     return host, confidence
-
-
-# def _update_canonical(event: Dict[str, Any], out: Dict[str,any]):
-#     canonical_prev: Dict[str, Any] = event.get("canonical") or {}
-#     # 1) Load previous canonical (re-validates it)
-#     nova = load_canonical(canonical_prev)
-
-#     # 2) Map step-specific outputs -> schema fields
-#     host = out.get("host_galaxy")
-#     confidence = out.get("external_galaxy_confidence")
-
-#     updates = {}
-#     if host not in (None, ""):
-#         updates["host_gal"] = host
-#     if confidence is not None:
-#         updates["host_gal_confidence"] = confidence
-
-#     # 3) Apply updates and re-validate
-#     try:
-#         nova = merge_updates(nova, updates)     # overrides existing values; use fill_missing if you prefer add-only
-#     except ValidationError as e:
-#         # Log helpful details, then re-raise so Step Functions can retry/fail visibly
-#         logger.error("Nova validation failed after host-galaxy updates: %s", e)
-#         for err in e.errors():
-#             logger.error("field=%s msg=%s input=%s", ".".join(map(str, err.get("loc",[]))), err.get("msg"), err.get("input"))
-#         raise
-
-#     # 4) Serialize back for the next state
-#     return {"canonical": dump_canonical(nova)}
 
 
 def compute_host_galaxy(canonical: Dict[str, Any]) -> Tuple[Optional[str], Optional[float]]:
@@ -263,56 +213,6 @@ def compute_host_galaxy(canonical: Dict[str, Any]) -> Tuple[Optional[str], Optio
     # Fallback: unknown
     return None, None
 
-    # # Find nearest galaxy by angular separation
-    # (gname, gra, gdec), sep_deg = _nearest_galaxy(ra, dec)
-
-    # # Name/alias check
-    # names_text = _normalize(_aliases_as_text(event))
-    # gnorm = _normalize(gname)
-    # name_contains = (gnorm in names_text) if (gnorm and names_text) else False
-
-    # # Decide confidence per your rules
-    # if sep_deg <= CONFIRM_WITHIN_DEG and name_contains:
-    #     host = gname
-    #     confidence = "CONFIRMED"
-    #     method = "name_match"
-    # elif sep_deg <= PROBABLE_WITHIN_DEG:
-    #     host = gname
-    #     confidence = "PROBABLE"
-    #     method = "positional"
-    # elif PROBABLE_WITHIN_DEG <= sep_deg <= CONFIRM_WITHIN_DEG:
-    #     host = ["MW", gname]
-    #     confidence = "POSSIBLE"
-    #     method = "positional"
-    # else:
-    #     host = "MW"
-    #     confidence = "MW"
-    #     method = "none"
-
-    # out = dict(event)  # shallow copy
-    # out["nearest_galaxy"] = {
-    #     "name": gname,
-    #     "distance_deg": round(sep_deg, 6),
-    #     "ra_deg": gra,
-    #     "dec_deg": gdec,
-    # }
-    # out["host_galaxy"] = host
-    # out["external_galaxy_confidence"] = confidence
-    # out["host_method"] = method
-
-    # out["canonical"] = _update_canonical(event,out)
-    # return out
-
-
-# def handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
-#     if not isinstance(event, dict) or event.get("status") != "OK":
-#         return {"status": "BAD_REQUEST", "reason": "Upstream did not return status=OK"}
-
-#     try:
-#         return compute_host_galaxy(event)
-#     except Exception:
-#         # surface errors to Step Functions for retry/visibility
-#         raise
 def handler(event: Dict[str, Any], _context: Any) -> Dict[str, Any]:
     """
     Expects:

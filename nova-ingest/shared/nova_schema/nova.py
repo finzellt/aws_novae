@@ -2,20 +2,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic import AnyUrl
 from typing import Optional, List
 from datetime import date, datetime, timezone
-
-BANDS = {"U","B","V","R","I","g","r","i","z","y","J","H","K"}
-IAU_CODES = {
-    "And","Ant","Aps","Aql","Aqr","Ara","Ari","Aur",
-    "Boo","Cae","Cam","Cap","Car","Cas","Cen","Cep",
-    "Cet","Cha","Cir","CMa","CMi","Cnc","Col","Com","CrA",
-    "CrB","Crt","Cru","Crv","CVn","Cyg","Del","Dor","Dra",
-    "Equ","Eri","For","Gem","Gru","Her","Hor","Hya","Hyi",
-    "Ind","Lac","Leo","Lep","Lib","LMi","Lup","Lyn","Lyr",
-    "Men","Mic","Mon","Mus","Nor","Oct","Oph","Ori","Pav",
-    "Peg","Per","Phe","Pic","PsA","Psc","Pup","Pyx","Ret",
-    "Scl","Sco","Sct","Ser","Sex","Sge","Sgr","Tau","Tel",
-    "TrA","Tri","Tuc","UMa","UMi","Vel","Vir","Vol","Vul"
-}
+# import from sibling module
+from .consts import BANDS, IAU_CODES
 
 class Nova(BaseModel):
     model_config = {
@@ -33,7 +21,7 @@ class Nova(BaseModel):
     gal_coords_b: float = Field(..., description="Galactic b [deg]")
 
     host_gal: Optional[str] = Field("MW", description="Host Galaxy of the nova")
-    host_gal_confidence: Optional[str] = Field(None, description="Level of confidence in assigned host galaxy")
+    host_gal_confidence: Optional[float] = Field(None, description="Level of confidence in assigned host galaxy")
     first_observed: Optional[date] = Field(None, description="Date of discovery")
     obs_year: Optional[int] = Field(None, description="Year in which nova was discovered")
     constellation: str = Field(..., description="IAU 3-letter code")
