@@ -5,11 +5,11 @@ Open Nova Catalog (2nd Gen; ONC2) is a project to aggregate data for Classical N
 
 Built using Amazon Web Services (AWS), the project currently consists of a pipeline for robustly finding metadata and (potential) data sources for a given nova. Future features will include both data harvesting and a website/API for the public to view and and download the data.
 
-Currently, the project uses an AWS Step Function to run four (AWS) Lambda functions:
+Currently, the project uses an AWS Step Function to run four (AWS) Lambda functions, all of which live in the `nova-ingest` directory:
 - **Resolve_Simbad_Metadata**: Qeries Simbad to extract metadata
 - **Determine_Host_Galaxy**: Determine the galaxy of the nova.
 - **Query_Ads_Bibcodes**: Queries ADS for all bibliographic sources related to the nova. 
-- **Stage_Write_Metadata**: Writes out both a metadata file and queues bibliographic sources that may have associated data.
+- **Stage_Write_Metadata**: Writes out both a metadata file and queues--in a DynamoDB table--bibliographic sources that may have associated data.
 
 
 ## Using ONC2
